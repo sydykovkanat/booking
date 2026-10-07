@@ -76,3 +76,38 @@ test('drag in the week grid selects a range and opens the quick form next to it'
   await expect(bookingDialog(page).getByRole('combobox', { name: 'Конец' })).toHaveText(/12:30 · 1 ч 30 мин/);
   await expect(bookingDialog(page).getByLabel('Название')).toBeFocused();
 });
+
+test('changing the date in the month popover moves the highlight and the popover', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Phones use a drawer, not a popover anchored to a cell.');
+  const first = futureDate(30);
+  const [y, m] = first.split('-').map(Number);
+  await openView(page, 'month', first);
+
+  const cell = (day: number) =>
+    page.getByRole('gridcell', { name: new RegExp(`^${format(new Date(y, m - 1, day), 'd MMMM', { locale: ru })},`) });
+  const fromDay = Number(first.slice(8)) <= 20 ? 20 : 10;
+  const toDay = fromDay + 2;
+
+  await cell(fromDay).getByRole('button', { name: /^Новая бронь на/ }).click();
+  await expect(cell(fromDay)).toHaveAttribute('data-active', 'true');
+
+  await bookingDialog(page).getByRole('button', { name: /^Дата:/ }).click();
+  // The date picker's month calendar (react-day-picker), not the month grid behind it.
+  await page
+    .locator('.rdp-root')
+    .getByRole('button', { name: new RegExp(`(^|\\D)${toDay} ${format(new Date(y, m - 1, toDay), 'MMMM', { locale: ru })}`) })
+    .click();
+
+  await expect(cell(toDay)).toHaveAttribute('data-active', 'true');
+  await expect(cell(fromDay)).not.toHaveAttribute('data-active');
+
+  // The popover sits next to the new cell, not the old one.
+  const popover = (await bookingDialog(page).boundingBox())!;
+  const target = (await cell(toDay).boundingBox())!;
+  // Placed on the right of the cell, or flipped to its left near the viewport edge.
+  const besideRight = Math.abs(popover.x - (target.x + target.width)) < 40;
+  const besideLeft = Math.abs(popover.x + popover.width - target.x) < 40;
+  expect(besideRight || besideLeft).toBe(true);
+  expect(popover.y).toBeLessThan(target.y + target.height);
+  expect(popover.y + popover.height).toBeGreaterThan(target.y);
+});

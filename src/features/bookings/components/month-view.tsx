@@ -20,8 +20,10 @@ interface MonthViewProps {
   bookings: readonly Booking[];
   /** Phones: tapping a day selects it (its bookings are listed below) instead of creating. */
   compact: boolean;
-  /** Desktop: id of the cell that anchors the open create popover. */
+  /** Day of the booking being composed: highlighted, and its cell anchors the popover. */
   activeCreateDay: IsoDate | null;
+  /** Receives the active cell element (stable callback, e.g. a state setter). */
+  onActiveCell?: (element: HTMLElement | null) => void;
   onCreate: (day: IsoDate, anchor: HTMLElement) => void;
   onPickDay: (day: IsoDate) => void;
   onOpenDay: (day: IsoDate) => void;
@@ -82,6 +84,7 @@ function DayCell({
   dayBookings,
   compact,
   activeCreateDay,
+  onActiveCell,
   onCreate,
   onPickDay,
   onOpenDay,
@@ -131,7 +134,9 @@ function DayCell({
 
   return (
     <div
+      ref={activeCreateDay === day ? onActiveCell : undefined}
       role="gridcell"
+      data-active={activeCreateDay === day || undefined}
       aria-label={`${label}${dayBookings.length ? `, броней: ${dayBookings.length}` : ''}`}
       className={cn(
         'group/cell relative flex min-h-28 flex-col gap-1 overflow-hidden rounded-lg p-1.5',

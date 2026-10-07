@@ -38,7 +38,8 @@ import { type Draft, type SelectVia, TimeGrid } from './time-grid';
 
 const SWIPE_MIN_PX = 60;
 
-type Anchor = Element | null | RefObject<Element | null>;
+/** `'draft-cell'`: the month cell of the draft's current day, which moves with the draft. */
+type Anchor = Element | null | RefObject<Element | null> | 'draft-cell';
 
 type Panel =
   | {
@@ -49,8 +50,6 @@ type Panel =
       original?: Booking;
       presentation: Presentation;
       anchor: Anchor;
-      /** Month cell the popover came from, highlighted while open. */
-      fromDay?: IsoDate;
     }
   | { kind: 'details'; key: number; booking: Booking; presentation: Presentation; anchor: Anchor };
 
@@ -80,6 +79,7 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [deleting, setDeleting] = useState<Booking | null>(null);
   const draftRef = useRef<HTMLDivElement>(null);
+  const [draftCell, setDraftCell] = useState<HTMLElement | null>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   const isCurrentPeriod = now.date >= from && now.date <= to;
@@ -97,7 +97,7 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
     setDraft(null);
   };
 
-  const compose = (day: IsoDate, slot: TimeRange, presentation: Presentation, anchor: Anchor, fromDay?: IsoDate) => {
+  const compose = (day: IsoDate, slot: TimeRange, presentation: Presentation, anchor: Anchor) => {
     setDraft({ day, ...slot, conflict: false });
     setPanel({
       kind: 'compose',
@@ -106,17 +106,16 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
       initialValues: { date: day, start: slot.start, end: slot.end, title: '' },
       presentation,
       anchor,
-      fromDay,
     });
   };
 
-  const composeOnDay = (day: IsoDate, presentation: Presentation, anchor: Anchor = null, fromDay?: IsoDate) => {
+  const composeOnDay = (day: IsoDate, presentation: Presentation, anchor: Anchor = null) => {
     const slot = firstFreeRange(day);
     if (!slot) {
       notify('info', 'Свободного времени нет', 'На этот день всё занято или рабочий день уже закончился.');
       return;
     }
-    compose(day, slot, presentation, anchor, fromDay);
+    compose(day, slot, presentation, anchor);
   };
 
   const createFromToolbar = () => {
@@ -145,7 +144,10 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
 
   const onPreviewChange = (preview: BookingPreview | null) => {
     // Keep the last draft while the form is incomplete: the popover is anchored to it.
-    if (preview) setDraft({ day: preview.date, start: preview.start, end: preview.end, conflict: preview.conflict });
+    if (!preview) return;
+    setDraft({ day: preview.date, start: preview.start, end: preview.end, conflict: preview.conflict });
+    // The date was changed in the form: bring that day into view so the draft (and the popover) follow.
+    if (preview.date < from || preview.date > to) navigate({ date: preview.date });
   };
 
   const onSaved = (booking: Booking, mode: 'create' | 'edit') => {
@@ -221,8 +223,9 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
                   now={now}
                   bookings={bookings}
                   compact={compact}
-                  activeCreateDay={panel?.kind === 'compose' ? (panel.fromDay ?? null) : null}
-                  onCreate={(day, anchor) => composeOnDay(day, floating, anchor, day)}
+                  activeCreateDay={panel?.kind === 'compose' && draft ? draft.day : null}
+                  onActiveCell={setDraftCell}
+                  onCreate={(day) => composeOnDay(day, floating, 'draft-cell')}
                   onPickDay={(day) => navigate({ date: day })}
                   onOpenDay={(day) => navigate({ view: 'day', date: day })}
                   onSelectBooking={showDetails}
@@ -275,7 +278,7 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
       <Surface
         open={panel !== null}
         presentation={panel?.presentation ?? 'dialog'}
-        anchor={panel?.anchor}
+        anchor={panel?.anchor === 'draft-cell' ? draftCell : panel?.anchor}
         label={panel?.kind === 'details' ? 'Бронь' : panel?.mode === 'edit' ? 'Изменить бронь' : 'Новая бронь'}
         onClose={close}
       >
@@ -298,7 +301,7 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
           <BookingDetails
             booking={freshDetails}
             phase={getBookingPhase(freshDetails, now)}
-            onEdit={() => edit(freshDetails, panel.anchor)}
+            onEdit={() => edit(freshDetails, panel.anchor === 'draft-cell' ? draftCell : panel.anchor)}
             onDelete={() => {
               close();
               setDeleting(freshDetails);
