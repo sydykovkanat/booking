@@ -16,6 +16,10 @@ services:
     environment:
       DEMO_LATENCY_MS: "250-700"
     mem_limit: 256m
+    pids_limit: 200
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     networks:
       - edge
 
