@@ -3,20 +3,23 @@ import { BOOKING_RULES } from './config';
 import { findConflicts } from './overlap';
 import { isValidIsoDate, isValidTime, toMinutes } from './time';
 
-export type BookingField = 'date' | 'start' | 'end' | 'title';
+export const BOOKING_FIELDS = ['date', 'start', 'end', 'title'] as const;
+export type BookingField = (typeof BOOKING_FIELDS)[number];
 
-export type BookingViolationCode =
-  | 'INVALID_DATE'
-  | 'INVALID_TIME'
-  | 'INVALID_STEP'
-  | 'OUTSIDE_WORKING_HOURS'
-  | 'START_NOT_BEFORE_END'
-  | 'TOO_SHORT'
-  | 'TOO_LONG'
-  | 'IN_PAST'
-  | 'BOOKING_LOCKED'
-  | 'CONFLICT'
-  | 'TITLE_TOO_LONG';
+export const BOOKING_VIOLATION_CODES = [
+  'INVALID_DATE',
+  'INVALID_TIME',
+  'INVALID_STEP',
+  'OUTSIDE_WORKING_HOURS',
+  'START_NOT_BEFORE_END',
+  'TOO_SHORT',
+  'TOO_LONG',
+  'IN_PAST',
+  'BOOKING_LOCKED',
+  'CONFLICT',
+  'TITLE_TOO_LONG',
+] as const;
+export type BookingViolationCode = (typeof BOOKING_VIOLATION_CODES)[number];
 
 export interface BookingViolation {
   field: BookingField;

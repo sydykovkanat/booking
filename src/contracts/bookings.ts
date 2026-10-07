@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { BookingField, BookingViolationCode } from '@/domain/rules';
+import { BOOKING_FIELDS, BOOKING_VIOLATION_CODES } from '@/domain/rules';
 
 /**
  * Wire contract shared by the API route handlers and the HTTP client.
@@ -28,22 +28,17 @@ export const bookingPatchSchema = bookingInputSchema.partial();
 
 export type BookingPatch = z.infer<typeof bookingPatchSchema>;
 
-export type ApiErrorCode = BookingViolationCode | 'NOT_FOUND' | 'BAD_REQUEST' | 'INTERNAL';
+export const apiErrorCodeSchema = z.enum([...BOOKING_VIOLATION_CODES, 'NOT_FOUND', 'BAD_REQUEST', 'INTERNAL']);
+
+export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;
 
 export const apiErrorBodySchema = z.object({
   error: z.object({
-    code: z.string(),
+    code: apiErrorCodeSchema,
     message: z.string(),
-    fields: z.partialRecord(z.enum(['date', 'start', 'end', 'title']), z.string()).optional(),
+    fields: z.partialRecord(z.enum(BOOKING_FIELDS), z.enum(BOOKING_VIOLATION_CODES)).optional(),
     conflicts: bookingListSchema.optional(),
   }),
 });
 
-export interface ApiErrorBody {
-  error: {
-    code: ApiErrorCode;
-    message: string;
-    fields?: Partial<Record<BookingField, BookingViolationCode>>;
-    conflicts?: z.infer<typeof bookingListSchema>;
-  };
-}
+export type ApiErrorBody = z.infer<typeof apiErrorBodySchema>;
