@@ -208,3 +208,54 @@ describe('QuickBookingForm', () => {
     expect(submitButton()).toBeDisabled();
   });
 });
+
+describe('QuickBookingForm — review regressions', () => {
+  it('after a timeout that was in fact committed, retry recognises our own booking without a second request', async () => {
+    const schedule = [planning];
+    const api = createFakeApi(schedule);
+    // The server stores the booking, but the response never arrives.
+    api.create.mockImplementationOnce(async (input) => {
+      schedule.push({ ...input, id: 'committed' });
+      throw new ApiError({ status: 0, code: 'TIMEOUT', message: 'slow' });
+    });
+    const { onSaved } = renderForm(api);
+    await ready();
+
+    await user().type(screen.getByLabelText('Название'), 'Ревью');
+    await user().click(submitButton());
+    await user().click(await screen.findByRole('button', { name: 'Повторить' }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ id: 'committed' }), 'create'));
+    expect(api.create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('QuickBookingForm — ongoing booking conflict', () => {
+  beforeEach(() => {
+    // 2026-10-08 10:20 in Asia/Bishkek: the 10:00–11:00 booking is ongoing.
+    vi.setSystemTime(new Date('2026-10-08T04:20:00Z'));
+  });
+
+  it('suggests only a shorter end, never a new start', async () => {
+    const colleague: Booking = { id: 'c', date: DATE, start: '11:30', end: '12:30', title: 'Коллега' };
+    const schedule = [planning];
+    const api = createFakeApi(schedule);
+    api.update.mockImplementationOnce(async () => {
+      schedule.push(colleague);
+      throw new ApiError({ status: 409, code: 'CONFLICT', message: 'overlap', conflicts: [colleague] });
+    });
+    renderForm(api, {
+      mode: 'edit',
+      original: planning,
+      initialValues: { date: DATE, start: '10:00', end: '12:00', title: 'Планирование' },
+    });
+
+    const save = await screen.findByRole('button', { name: 'Сохранить' });
+    await waitFor(() => expect(save).toBeEnabled());
+    await user().click(save);
+
+    await user().click(await screen.findByRole('button', { name: /Взять 10:00–11:30/ }));
+    expect(row('Начало')).toHaveTextContent('10:00');
+    expect(row('Конец')).toHaveTextContent('11:30');
+  });
+});

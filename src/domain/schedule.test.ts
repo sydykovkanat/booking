@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Booking } from './booking';
-import { buildAgenda, endForStart, endOptions, findNearestFreeSlot, startOptions } from './schedule';
+import { buildAgenda, endForStart, endOptions, findNearestFreeSlot, shortenToFit, startOptions } from './schedule';
 
 const DATE = '2026-10-08';
 const TOMORROW_NOW = { date: '2026-10-07', minutes: 12 * 60 };
@@ -178,5 +178,19 @@ describe('endForStart', () => {
 
   it('returns empty when nothing fits', () => {
     expect(endForStart('13:45', 60, ctx)).toBe('');
+  });
+});
+
+describe('shortenToFit', () => {
+  const ongoingNow = { date: DATE, minutes: 10 * 60 + 20 };
+
+  it('keeps the start and cuts the end at the next booking', () => {
+    const ctx = { date: DATE, bookings: [booking('c', '11:30', '12:30')], now: ongoingNow, excludeId: 'p' };
+    expect(shortenToFit({ start: '10:00', end: '12:00' }, ctx)).toEqual({ start: '10:00', end: '11:30' });
+  });
+
+  it('returns null when nothing shorter is free', () => {
+    const ctx = { date: DATE, bookings: [booking('c', '10:15', '12:30')], now: ongoingNow };
+    expect(shortenToFit({ start: '10:00', end: '12:00' }, ctx)).toBeNull();
   });
 });

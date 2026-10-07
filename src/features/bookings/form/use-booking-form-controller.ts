@@ -7,7 +7,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import type { Booking, TimeRange } from '@/domain/booking';
 import { findConflicts } from '@/domain/overlap';
 import { type BookingField, getBookingPhase, normalizeInput, type ValidationContext } from '@/domain/rules';
-import { type DayContext, endOptions, findNearestFreeSlot, startOptions } from '@/domain/schedule';
+import { type DayContext, endOptions, findNearestFreeSlot, shortenToFit, startOptions } from '@/domain/schedule';
 import { isValidIsoDate, isValidTime, toMinutes } from '@/domain/time';
 import { ApiError } from '@/lib/api/api-error';
 
@@ -176,8 +176,21 @@ export function useBookingFormController({
     }
   };
   // handleSubmit is created per event so the callback (which touches a ref) never runs during render.
-  const submit = (event?: BaseSyntheticEvent) =>
-    form.handleSubmit(onValid)(event);
+  const submit = (event?: BaseSyntheticEvent) => {
+    // A create that timed out may have been committed; the refetch then shows it as "ours".
+    // Local validation would call it a conflict, so recognise it before validating.
+    if (lastAttemptWasTransient.current && mode === 'create') {
+      const attempted = normalizeInput(getValues());
+      const ours = existing.find((b) => sameSlot(b, attempted));
+      if (ours) {
+        event?.preventDefault();
+        lastAttemptWasTransient.current = false;
+        onSuccess(ours);
+        return Promise.resolve();
+      }
+    }
+    return form.handleSubmit(onValid)(event);
+  };
 
   /** The user changed the schedule fields: stale server feedback about them no longer applies. */
   const onScheduleEdited = () => {
@@ -186,6 +199,12 @@ export function useBookingFormController({
   };
 
   const shouldRevalidate = formState.isSubmitted;
+
+  /** A running booking can only move its end, so only a shorter end is ever suggested. */
+  function conflictSuggestion(): TimeRange | null {
+    if (alert?.kind !== 'conflict' || !dayCtx || !validRange) return null;
+    return phase === 'ongoing' ? shortenToFit({ start, end }, dayCtx) : findNearestFreeSlot({ start, end }, dayCtx);
+  }
 
   return {
     form,
@@ -197,7 +216,7 @@ export function useBookingFormController({
     dayContext: dayCtx,
     startOptions: dayCtx ? startOptions(dayCtx) : [],
     endOptions: dayCtx && isValidTime(start) ? endOptions(start, dayCtx) : [],
-    suggestion: alert?.kind === 'conflict' && dayCtx && validRange ? findNearestFreeSlot({ start, end }, dayCtx) : null,
+    suggestion: conflictSuggestion(),
     fieldError: (field: BookingField) => formState.errors[field]?.message ?? serverErrors[field],
     submit,
     isSubmitting: formState.isSubmitting,

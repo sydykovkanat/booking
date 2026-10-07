@@ -16,6 +16,7 @@ import { PAST_TONE, toneFor } from '../lib/tone';
 
 const DAY_START = toMinutes(BOOKING_RULES.workStart);
 const DAY_END = toMinutes(BOOKING_RULES.workEnd);
+const STEP = BOOKING_RULES.stepMinutes;
 const SPAN = DAY_END - DAY_START;
 const HOURS = Array.from({ length: SPAN / 60 + 1 }, (_, i) => DAY_START / 60 + i);
 
@@ -152,8 +153,12 @@ function DayColumn({ day, now, bookings, draft, draftRef, editingId, onSelectRan
     if (event.pointerType !== 'mouse') return;
     const minute = minuteAt(event.clientY);
     if (drag) setDrag({ ...drag, current: minute });
-    else setHover(minute);
+    // Snapped, so moving within the same quarter hour does not re-render the column.
+    else setHover(Math.floor(minute / STEP) * STEP);
   };
+
+  /** OS gestures, a context menu or a lost window focus end the drag without selecting. */
+  const cancelDrag = () => setDrag(null);
 
   const onPointerUp = () => {
     if (!drag) return;
@@ -188,13 +193,18 @@ function DayColumn({ day, now, bookings, draft, draftRef, editingId, onSelectRan
       <ol aria-label={format(isoDateToLocalDate(day), 'd MMMM', { locale: ru })} className="absolute inset-0">
         {items.map((item) =>
           item.kind === 'free' ? (
-            <li key={`free-${item.start}`} className="absolute inset-x-0" style={box(item)}>
+            // Keyed by the end: today the start moves with "now", which would remount the button
+            // mid-drag (losing pointer capture) and drop keyboard focus.
+            <li key={`free-${item.end}`} className="absolute inset-x-0" style={box(item)}>
               <button
                 type="button"
                 aria-label={`Забронировать ${formatRange(item)}`}
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
                 onPointerUp={onPointerUp}
+                onPointerCancel={cancelDrag}
+                onLostPointerCapture={cancelDrag}
+                onPointerLeave={() => setHover(null)}
                 onClick={(event) => {
                   // Mouse selections are handled on pointer up; this is touch and keyboard.
                   if (event.detail === 0) {

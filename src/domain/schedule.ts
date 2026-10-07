@@ -126,3 +126,13 @@ export function endForStart(start: TimeString, preferredDuration: number, ctx: D
   const fitting = available.filter((o) => toMinutes(o.value) <= wanted);
   return (fitting.at(-1) ?? available[0])?.value ?? '';
 }
+
+/**
+ * For a booking whose start is fixed (it is already running): the longest free end,
+ * if it is shorter than the requested one. Null when nothing shorter fits.
+ */
+export function shortenToFit(range: TimeRange, ctx: DayContext): TimeRange | null {
+  const available = endOptions(range.start, ctx).filter((o) => o.status === 'available');
+  const longest = available.at(-1);
+  return longest && toMinutes(longest.value) < toMinutes(range.end) ? { start: range.start, end: longest.value } : null;
+}

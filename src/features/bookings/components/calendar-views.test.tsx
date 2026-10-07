@@ -185,3 +185,50 @@ describe('TimeGrid pointer selection', () => {
     rect.mockRestore();
   });
 });
+
+describe('TimeGrid pointer robustness', () => {
+  const withColumnRect = () =>
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 0, bottom: 540, left: 0, right: 200, height: 540, width: 200, x: 0, y: 0, toJSON: () => ({}),
+    });
+  const y = (time: string) => (Number(time.slice(0, 2)) - 9) * 60 + Number(time.slice(3));
+  const props = (now = NOW) => ({
+    days: ['2026-10-08'],
+    now,
+    bookings: [] as Booking[],
+    draft: null,
+    draftRef: createRef<HTMLDivElement>(),
+    editingId: null,
+    onSelectRange: vi.fn(),
+    onSelectBooking: vi.fn(),
+  });
+
+  it('a cancelled pointer ends the drag without selecting', () => {
+    const rect = withColumnRect();
+    const p = props();
+    render(<TimeGrid {...p} />);
+    const gap = screen.getByRole('button', { name: 'Забронировать 09:00–18:00' });
+    gap.setPointerCapture = vi.fn();
+
+    fireEvent.pointerDown(gap, { pointerType: 'mouse', button: 0, clientY: y('11:05'), pointerId: 1 });
+    fireEvent.pointerMove(gap, { pointerType: 'mouse', clientY: y('12:20'), pointerId: 1 });
+    fireEvent.pointerCancel(gap, { pointerType: 'mouse', pointerId: 1 });
+    expect(screen.queryByText('Новая бронь')).not.toBeInTheDocument();
+
+    // A later hover is just a hover, not a continuing drag.
+    fireEvent.pointerMove(gap, { pointerType: 'mouse', clientY: y('14:00'), pointerId: 1 });
+    fireEvent.pointerUp(gap, { pointerType: 'mouse', clientY: y('14:00'), pointerId: 1 });
+    expect(p.onSelectRange).not.toHaveBeenCalled();
+    rect.mockRestore();
+  });
+
+  it('keeps the same free-window button as "now" moves within today', () => {
+    const today = { date: '2026-10-08', minutes: 12 * 60 + 5 };
+    const { rerender } = render(<TimeGrid {...props(today)} />);
+    const before = screen.getByRole('button', { name: /^Забронировать 12:15–18:00/ });
+
+    rerender(<TimeGrid {...props({ ...today, minutes: 12 * 60 + 20 })} />);
+    const after = screen.getByRole('button', { name: /^Забронировать 12:30–18:00/ });
+    expect(after).toBe(before);
+  });
+});

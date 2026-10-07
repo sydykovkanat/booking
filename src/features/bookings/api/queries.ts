@@ -33,8 +33,11 @@ export const bookingsRangeQuery = (api: BookingsApi, from: IsoDate, to: IsoDate)
     refetchInterval: BACKGROUND_REFRESH_MS,
   });
 
-/** Bookings for the visible calendar range; the previous range stays on screen while the next loads. */
+/**
+ * Bookings for the visible calendar range. No placeholder data on purpose: the previous range's
+ * bookings never match the new days, so showing them would paint the new period as free.
+ */
 export function useBookingsRange(from: IsoDate, to: IsoDate) {
   const api = useBookingsApi();
-  return useQuery({ ...bookingsRangeQuery(api, from, to), placeholderData: (previous) => previous });
+  return useQuery(bookingsRangeQuery(api, from, to));
 }

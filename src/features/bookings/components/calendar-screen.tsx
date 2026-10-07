@@ -8,6 +8,7 @@ import { type RefObject, type TouchEvent, useRef, useState } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Booking, IsoDate, RoomNow, TimeRange } from '@/domain/booking';
 import { type CalendarView, shiftAnchor, visibleRange, weekDays } from '@/domain/calendar';
@@ -200,10 +201,10 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
             onResetDemo={resetDemo}
           />
 
-          {range.isError && (
-            <Alert variant={range.data ? 'warning' : 'destructive'} role="alert">
+          {range.isError && range.data && (
+            <Alert variant="warning" role="alert">
               <IconAlertTriangle aria-hidden />
-              <AlertTitle>{range.data ? 'Не удалось обновить расписание' : 'Не удалось загрузить бронирования'}</AlertTitle>
+              <AlertTitle>Не удалось обновить расписание</AlertTitle>
               <AlertDescription className="flex flex-wrap items-center gap-3">
                 {apiErrorMessage(range.error)}
                 <Button size="xs" variant="secondary" onClick={() => range.refetch()}>
@@ -215,7 +216,23 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
 
           <div className="flex min-h-0 flex-1 flex-col" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
             {range.isPending ? (
-              <Skeleton className="min-h-[32rem] flex-1 rounded-xl" aria-label="Загружаем бронирования" />
+              <Skeleton role="status" className="min-h-[32rem] flex-1 rounded-xl" aria-label="Загружаем бронирования" />
+            ) : !range.data ? (
+              // Without data the grid would look entirely free: show the error instead of it.
+              <Empty role="alert" className="flex-1 rounded-xl bg-muted/50">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon" className="bg-destructive/10 text-destructive">
+                    <IconAlertTriangle />
+                  </EmptyMedia>
+                  <EmptyTitle>Не удалось загрузить бронирования</EmptyTitle>
+                  <EmptyDescription>{apiErrorMessage(range.error)}</EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button variant="secondary" onClick={() => range.refetch()}>
+                    <IconRefresh data-icon="inline-start" aria-hidden /> Повторить
+                  </Button>
+                </EmptyContent>
+              </Empty>
             ) : view === 'month' ? (
               <>
                 <MonthView
@@ -317,7 +334,7 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
 
 function ScreenSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Загрузка" className="flex min-h-dvh bg-muted p-2 sm:p-5">
+    <div role="status" aria-busy="true" aria-label="Загрузка" className="flex min-h-dvh bg-muted p-2 sm:p-5">
       <Skeleton className="flex-1 rounded-2xl" />
     </div>
   );
