@@ -1,111 +1,80 @@
 'use client';
 
-import { IconPlus } from '@tabler/icons-react';
+import { IconCircleCheck, IconRestore } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo, useState } from 'react';
+import { format } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Booking, IsoDate, RoomNow, TimeRange } from '@/domain/booking';
-import { buildAgenda } from '@/domain/schedule';
-import { fromMinutes, toMinutes } from '@/domain/time';
+import { appConfig } from '@/config/app-config';
+import type { Booking, IsoDate, RoomNow } from '@/domain/booking';
 import { demoApi } from '@/lib/api/demo-api';
 
-import { useBookings } from '../api/queries';
 import { bookingKeys } from '../api/query-keys';
-import type { BookingPreview } from '../form/booking-form';
 import type { BookingFormValues } from '../form/booking-form-schema';
 import { useRoomNow } from '../hooks/use-room-now';
 import { useSelectedDate } from '../hooks/use-selected-date';
-import { formatRange } from '../lib/format';
+import { formatRange, isoDateToLocalDate } from '../lib/format';
 import { notify } from '../lib/notify';
-import { AppHeader } from './app-header';
-import { DaySchedule } from './day-schedule';
-import { DayToolbar } from './day-toolbar';
-import { bookingElementId } from './day-timeline';
+import { BookingFlow } from './booking-flow';
 import { DeleteBookingDialog } from './delete-booking-dialog';
-import { type EditorRequest, Inspector, type PanelRequest, type PanelState } from './inspector';
+import { InfoPanel } from './info-panel';
 
-const PREFERRED_DURATION_MINUTES = 60;
+type FlowState =
+  | { mode: 'create'; key: number; initialValues: BookingFormValues }
+  | { mode: 'edit'; key: number; booking: Booking };
 
-function valuesForRange(date: IsoDate, range: TimeRange): BookingFormValues {
-  const end = Math.min(toMinutes(range.start) + PREFERRED_DURATION_MINUTES, toMinutes(range.end));
-  return { date, start: range.start, end: fromMinutes(end), title: '' };
-}
+const emptyValues = (date: IsoDate): BookingFormValues => ({ date, start: '', end: '', title: '' });
 
-function focusBooking(id: string) {
-  requestAnimationFrame(() => document.getElementById(bookingElementId(id))?.focus());
-}
+const toValues = (booking: Booking): BookingFormValues => ({
+  date: booking.date,
+  start: booking.start,
+  end: booking.end,
+  title: booking.title ?? '',
+});
 
 export function BookingsScreen() {
   const now = useRoomNow();
   const [date, setDate] = useSelectedDate(now?.date ?? null);
 
   if (!now || !date) return <ScreenSkeleton />;
-  return <BookingsApp now={now} date={date} onDateChange={setDate} />;
+  return <BookingPage now={now} date={date} onDateChange={setDate} />;
 }
 
-interface BookingsAppProps {
+interface BookingPageProps {
   now: RoomNow;
   date: IsoDate;
   onDateChange: (date: IsoDate) => void;
 }
 
-function BookingsApp({ now, date, onDateChange }: BookingsAppProps) {
+function BookingPage({ now, date, onDateChange }: BookingPageProps) {
   const queryClient = useQueryClient();
-  const day = useBookings(date);
-  const bookings = useMemo(() => day.data ?? [], [day.data]);
-  const [panel, setPanel] = useState<PanelState | null>(null);
+  const [flow, setFlow] = useState<FlowState>(() => ({ mode: 'create', key: 0, initialValues: emptyValues(date) }));
+  const [done, setDone] = useState<{ booking: Booking; mode: 'create' | 'edit' } | null>(null);
   const [deleting, setDeleting] = useState<Booking | null>(null);
-  const [preview, setPreview] = useState<BookingPreview | null>(null);
 
-  const readOnly = date < now.date;
-  const freeWindows = useMemo(
-    () => buildAgenda({ date, bookings, now }).filter((i) => i.kind === 'free'),
-    [date, bookings, now],
-  );
-  const canCreate = !readOnly && freeWindows.length > 0;
-  const cannotCreateReason = readOnly
-    ? 'Прошедшие даты доступны только для просмотра.'
-    : 'На этот день свободного времени не осталось — выберите другую дату.';
+  const startCreate = (values: BookingFormValues = emptyValues(date)) => {
+    setDone(null);
+    setFlow({ mode: 'create', key: Date.now(), initialValues: values });
+  };
 
-  // Details always show the freshest copy; a booking deleted meanwhile closes the panel.
-  const shownPanel = useMemo<PanelState | null>(() => {
-    if (panel?.kind !== 'details' || panel.booking.date !== date || !day.data) return panel;
-    const fresh = day.data.find((b) => b.id === panel.booking.id);
-    return fresh ? { ...panel, booking: fresh } : null;
-  }, [panel, date, day.data]);
+  const startEdit = (booking: Booking) => {
+    setDone(null);
+    onDateChange(booking.date);
+    setFlow({ mode: 'edit', key: Date.now(), booking });
+  };
 
-  const selectedBookingId =
-    shownPanel?.kind === 'details'
-      ? shownPanel.booking.id
-      : shownPanel?.kind === 'form' && shownPanel.editor.mode === 'edit'
-        ? shownPanel.editor.booking.id
-        : null;
-  const visiblePreview = preview?.date === date ? preview : undefined;
-  const highlightedIds = useMemo(() => new Set(visiblePreview?.conflictIds ?? []), [visiblePreview]);
-
-  const open = (request: PanelRequest) => setPanel({ ...request, key: Date.now() });
-  const openForm = (editor: EditorRequest) => open({ kind: 'form', editor });
-  const closePanel = useCallback(() => setPanel(null), []);
-
-  const startCreate = () =>
-    openForm({
-      mode: 'create',
-      initialValues: freeWindows[0] ? valuesForRange(date, freeWindows[0]) : { date, start: '', end: '', title: '' },
-    });
-
-  const handleSaved = (saved: Booking) => {
-    const wasEdit = panel?.kind === 'form' && panel.editor.mode === 'edit';
-    notify('success', wasEdit ? `Бронь обновлена: ${formatRange(saved)}` : `Забронировано: ${formatRange(saved)}`);
-    if (saved.date !== date) onDateChange(saved.date);
-    open({ kind: 'details', booking: saved });
-    focusBooking(saved.id);
+  // The confirmation screen announces the result itself (role="status"), so no toast here.
+  const handleSaved = (booking: Booking, mode: 'create' | 'edit') => {
+    onDateChange(booking.date);
+    setDone({ booking, mode });
   };
 
   const handleDeleted = (booking: Booking) => {
     setDeleting(null);
-    if (selectedBookingId === booking.id) setPanel(null);
+    if (flow.mode === 'edit' && flow.booking.id === booking.id) startCreate();
   };
 
   const resetDemo = async () => {
@@ -114,77 +83,81 @@ function BookingsApp({ now, date, onDateChange }: BookingsAppProps) {
       return;
     }
     await queryClient.invalidateQueries({ queryKey: bookingKeys.all });
-    setPanel(null);
+    startCreate();
     notify('success', 'Данные сброшены к демо-набору');
   };
 
+  const activeBookingId = done ? done.booking.id : flow.mode === 'edit' ? flow.booking.id : null;
+
   return (
-    <div className="min-h-dvh bg-muted">
-      <div className="site-container flex max-w-6xl flex-col gap-4 pt-[max(1rem,env(safe-area-inset-top))] pb-28 md:gap-6 md:pt-6 lg:pb-10">
-        <AppHeader onResetDemo={resetDemo} />
+    <div className="flex min-h-dvh flex-col bg-muted">
+      <main className="site-container flex max-w-[68rem] flex-1 flex-col justify-center py-4 md:py-10">
+        <div className="grid overflow-hidden rounded-2xl bg-card shadow-card lg:grid-cols-[20rem_minmax(0,1fr)]">
+          <div className="bg-muted/40 p-5 sm:p-8">
+            <InfoPanel date={date} now={now} activeBookingId={activeBookingId} onEdit={startEdit} onDelete={setDeleting} />
+          </div>
 
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-6">
-          <main className="flex min-w-0 flex-col gap-5 rounded-2xl bg-card p-4 shadow-card sm:p-6">
-            <DayToolbar
-              date={date}
-              now={now}
-              bookingsCount={day.data ? bookings.length : null}
-              refreshing={day.isFetching && !day.isPending}
-              onChange={onDateChange}
-            />
-            <DaySchedule
-              date={date}
-              now={now}
-              readOnly={readOnly}
-              selectedBookingId={selectedBookingId}
-              selection={visiblePreview}
-              highlightedIds={highlightedIds}
-              onBook={(range) => openForm({ mode: 'create', initialValues: valuesForRange(date, range) })}
-              onSelectBooking={(booking) => open({ kind: 'details', booking })}
-            />
-          </main>
-
-          <Inspector
-            panel={shownPanel}
-            now={now}
-            canCreate={canCreate}
-            cannotCreateReason={cannotCreateReason}
-            onCreate={startCreate}
-            onEdit={(booking) => openForm({ mode: 'edit', booking })}
-            onDelete={setDeleting}
-            onClose={closePanel}
-            onSuccess={handleSaved}
-            onSwitchToCreate={(values) => openForm({ mode: 'create', initialValues: values })}
-            onPreviewChange={setPreview}
-          />
+          <div className="p-5 sm:p-8 lg:min-h-[36rem]">
+            {done ? (
+              <DoneStep booking={done.booking} mode={done.mode} onAgain={() => startCreate()} />
+            ) : (
+              <BookingFlow
+                key={flow.key}
+                mode={flow.mode}
+                original={flow.mode === 'edit' ? flow.booking : undefined}
+                initialValues={flow.mode === 'edit' ? toValues(flow.booking) : flow.initialValues}
+                onDateChange={onDateChange}
+                onSaved={handleSaved}
+                onCancelEdit={() => startCreate()}
+                onRecreate={startCreate}
+              />
+            )}
+          </div>
         </div>
-      </div>
 
-      {canCreate && !panel && (
-        <Button
-          size="icon-lg"
-          className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-sticky size-14 rounded-2xl shadow-floating lg:hidden"
-          aria-label="Новая бронь"
-          onClick={startCreate}
-        >
-          <IconPlus className="size-6" aria-hidden />
-        </Button>
-      )}
+        {appConfig.demoTools && (
+          <Button variant="ghost" size="sm" className="mt-4 self-center text-muted-foreground" onClick={resetDemo}>
+            <IconRestore data-icon="inline-start" aria-hidden /> Сбросить демо-данные
+          </Button>
+        )}
+      </main>
 
       <DeleteBookingDialog booking={deleting} onClose={() => setDeleting(null)} onDeleted={handleDeleted} />
     </div>
   );
 }
 
+interface DoneStepProps {
+  booking: Booking;
+  mode: 'create' | 'edit';
+  onAgain: () => void;
+}
+
+function DoneStep({ booking, mode, onAgain }: DoneStepProps) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-5 py-10 text-center">
+      <div className="flex size-14 items-center justify-center rounded-full bg-success/10 text-success" aria-hidden>
+        <IconCircleCheck className="size-8" />
+      </div>
+      <div role="status">
+        <h2 className="text-xl font-semibold">{mode === 'edit' ? 'Бронь обновлена' : 'Готово, переговорка ваша'}</h2>
+        <p className="mt-1 text-muted-foreground first-letter:uppercase">
+          {format(isoDateToLocalDate(booking.date), 'EEEE, d MMMM', { locale: ru })} · {formatRange(booking)}
+        </p>
+        {booking.title && <p className="mt-1 font-medium">{booking.title}</p>}
+      </div>
+      <Button size="lg" variant="secondary" onClick={onAgain}>
+        Забронировать ещё
+      </Button>
+    </div>
+  );
+}
+
 function ScreenSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Загрузка" className="min-h-dvh bg-muted">
-      <div className="site-container flex max-w-6xl flex-col gap-4 pt-4 md:gap-6 md:pt-6">
-        <Skeleton className="h-10 w-56" />
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-6">
-          <Skeleton className="h-[720px] rounded-2xl" />
-          <Skeleton className="hidden h-80 rounded-2xl lg:block" />
-        </div>
+    <div aria-busy="true" aria-label="Загрузка" className="flex min-h-dvh items-center bg-muted">
+      <div className="site-container max-w-[68rem]">
+        <Skeleton className="h-[560px] rounded-2xl" />
       </div>
     </div>
   );

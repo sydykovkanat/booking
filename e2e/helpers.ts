@@ -11,16 +11,17 @@ export function futureDate(daysAhead: number): string {
 
 export async function openDay(page: Page, date: string) {
   await page.goto(`/?date=${date}`);
-  await expect(page.getByRole('list', { name: 'Расписание на день' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Выберите дату и время' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Брони на/ })).toBeVisible();
 }
 
-export const submitButton = (page: Page, name: 'Забронировать' | 'Сохранить') =>
-  page.getByRole('button', { name, exact: true });
-
-/** Picks a time in the kit's Select (a button + listbox, not a native <select>). */
-export async function pickTime(page: Page, label: 'Начало' | 'Окончание', value: string) {
-  await page.getByLabel(label).click();
-  await page.getByRole('option', { name: new RegExp(`^${value}`) }).click();
+/** Step 1: pick a start (and optionally a duration), then "Next". */
+export async function pickSlot(page: Page, start: string, duration?: string) {
+  if (!(await page.getByRole('button', { name: /Далее/ }).isVisible())) {
+    await page.getByRole('list', { name: 'Время начала' }).getByRole('button', { name: start, exact: true }).click();
+  }
+  if (duration) await page.getByRole('radio', { name: duration, exact: true }).click();
+  await page.getByRole('button', { name: /Далее/ }).click();
 }
 
-export const timeField = (page: Page, label: 'Начало' | 'Окончание') => page.getByLabel(label);
+export const dayBookings = (page: Page) => page.getByRole('region', { name: /^Брони на/ });

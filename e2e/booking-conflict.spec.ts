@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { futureDate, openDay, submitButton, timeField } from './helpers';
+import { futureDate, openDay, pickSlot } from './helpers';
 
 test.beforeEach(async ({ request }) => {
   await request.post('/api/demo/reset');
@@ -13,29 +13,27 @@ test('a real race: the second user gets 409 and keeps their input', async ({ bro
   const alice = await (await browser.newContext(options)).newPage();
   const bob = await (await browser.newContext(options)).newPage();
 
-  // Both users see the same free slot and open the form for it.
+  // Both see 09:00 as free and get to the confirmation step.
   for (const page of [alice, bob]) {
     await openDay(page, date);
-    await page.getByRole('button', { name: 'Забронировать 09:00–18:00' }).click();
+    await pickSlot(page, '09:00');
   }
   await bob.getByLabel(/Название/).fill('Встреча Боба');
 
-  await submitButton(alice, 'Забронировать').click();
-  await expect(alice.getByText('Забронировано: 09:00–10:00')).toBeVisible();
+  await alice.getByRole('button', { name: 'Забронировать', exact: true }).click();
+  await expect(alice.getByRole('heading', { name: 'Готово, переговорка ваша' })).toBeVisible();
 
   // Bob's UI still believes the slot is free; the server says otherwise.
-  await submitButton(bob, 'Забронировать').click();
+  await bob.getByRole('button', { name: 'Забронировать', exact: true }).click();
   const alert = bob.getByRole('alert').filter({ hasText: 'Это время только что заняли' });
   await expect(alert).toBeVisible();
   await expect(alert).toContainText('09:00–10:00');
+  // The refreshed schedule shows Alice's booking.
+  await expect(bob.getByRole('list', { name: 'Время начала' }).getByText('09:00–10:00')).toBeVisible();
 
-  // Nothing typed is lost, and the schedule behind the form is refreshed.
+  // One click to the nearest free slot; the title Bob typed is still there.
+  await alert.getByRole('button', { name: /Взять 10:00–11:00/ }).click();
   await expect(bob.getByLabel(/Название/)).toHaveValue('Встреча Боба');
-  await expect(timeField(bob, 'Начало')).toContainText('09:00');
-
-  // One click to the nearest free slot, then it saves.
-  await alert.getByRole('button', { name: /Подставить 10:00–11:00/ }).click();
-  await submitButton(bob, 'Забронировать').click();
-  await expect(bob.getByText('Забронировано: 10:00–11:00')).toBeVisible();
-  await expect(bob.getByRole('list', { name: 'Расписание на день' }).getByText('Встреча Боба')).toBeVisible();
+  await bob.getByRole('button', { name: 'Забронировать', exact: true }).click();
+  await expect(bob.getByRole('heading', { name: 'Готово, переговорка ваша' })).toBeVisible();
 });

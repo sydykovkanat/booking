@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Booking } from './booking';
-import { buildAgenda, endOptions, findNearestFreeSlot, startOptions } from './schedule';
+import { buildAgenda, buildSlotRows, endOptions, findNearestFreeSlot, startOptions } from './schedule';
 
 const DATE = '2026-10-08';
 const TOMORROW_NOW = { date: '2026-10-07', minutes: 12 * 60 };
@@ -162,5 +162,34 @@ describe('findNearestFreeSlot', () => {
       { ...ctx([booking('a', '10:00', '11:00'), booking('b', '11:00', '12:00')]), excludeId: 'a' },
     );
     expect(slot).toEqual({ start: '10:00', end: '11:00' });
+  });
+});
+
+describe('buildSlotRows', () => {
+  const describeRows = (rows: ReturnType<typeof buildSlotRows>) =>
+    rows.map((r) => (r.kind === 'start' ? r.value : `busy ${r.booking.id}`));
+
+  it('lists free starts and collapses each booking into one row', () => {
+    const rows = buildSlotRows({
+      date: DATE,
+      bookings: [booking('a', '10:00', '11:00'), booking('b', '16:00', '18:00')],
+      now: TOMORROW_NOW,
+    });
+    expect(describeRows(rows)).toEqual([
+      '09:00', '09:15', '09:30',
+      'busy a',
+      '11:00', '11:15', '11:30', '11:45', '12:00', '12:15', '12:30', '12:45', '13:00',
+      '13:15', '13:30', '13:45', '14:00', '14:15', '14:30', '14:45', '15:00', '15:15', '15:30',
+      'busy b',
+    ]);
+  });
+
+  it('drops past starts and past bookings for today', () => {
+    const rows = buildSlotRows({
+      date: DATE,
+      bookings: [booking('a', '09:00', '10:00')],
+      now: { date: DATE, minutes: 17 * 60 },
+    });
+    expect(describeRows(rows)).toEqual(['17:00', '17:15', '17:30']);
   });
 });
