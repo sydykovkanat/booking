@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import type { RefObject } from 'react';
+import type { Ref } from 'react';
 
 import type { Booking, IsoDate, RoomNow, TimeRange } from '@/domain/booking';
 import { cn } from '@/lib/utils';
@@ -17,7 +17,7 @@ interface TimeGridProps {
   bookings: readonly Booking[];
   draft: Draft | null;
   /** Attached to the draft block so a popover can sit next to it. */
-  draftRef: RefObject<HTMLDivElement | null>;
+  draftRef: Ref<HTMLDivElement>;
   editingId: string | null;
   onSelectRange: (day: IsoDate, range: TimeRange, via: SelectVia) => void;
   onSelectBooking: (booking: Booking, element: HTMLElement) => void;

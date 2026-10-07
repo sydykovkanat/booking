@@ -1,7 +1,7 @@
 'use client';
 
 import { IconX } from '@tabler/icons-react';
-import type { ReactNode, RefObject } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
@@ -14,7 +14,7 @@ interface SurfaceProps {
   open: boolean;
   presentation: Presentation;
   /** Popover only: the element to sit next to (a grid selection, a booking, a day cell). */
-  anchor?: RefObject<Element | null> | Element | null;
+  anchor?: ComponentProps<typeof PopoverContent>['anchor'];
   label: string;
   onClose: () => void;
   /** Called once the closing animation has finished. */
@@ -65,7 +65,7 @@ export function Surface({ open, presentation, anchor, label, onClose, onExited, 
   return (
     <Popover open={open} onOpenChange={onOpenChange} onOpenChangeComplete={onOpenChangeComplete}>
       <PopoverContent
-        anchor={anchor ?? undefined}
+        anchor={anchor}
         side="right"
         align="start"
         sideOffset={10}

@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { type RefObject, useMemo, useRef } from 'react';
+import { type Ref, useMemo, useRef } from 'react';
 
 import type { Booking, IsoDate, RoomNow, TimeRange } from '@/domain/booking';
 import { buildAgenda } from '@/domain/schedule';
@@ -18,7 +18,7 @@ export interface DayColumnProps {
   now: RoomNow;
   bookings: readonly Booking[];
   draft: Draft | null;
-  draftRef: RefObject<HTMLDivElement | null>;
+  draftRef: Ref<HTMLDivElement>;
   editingId: string | null;
   onSelectRange: (day: IsoDate, range: TimeRange, via: SelectVia) => void;
   onSelectBooking: (booking: Booking, element: HTMLElement) => void;

@@ -1,6 +1,6 @@
 'use client';
 
-import type { RefObject } from 'react';
+import type { Ref } from 'react';
 
 import type { Booking, TimeRange } from '@/domain/booking';
 import { toMinutes } from '@/domain/time';
@@ -52,7 +52,7 @@ export function DraftBlock({
 }: {
   range: TimeRange;
   conflict: boolean;
-  innerRef?: RefObject<HTMLDivElement | null>;
+  innerRef?: Ref<HTMLDivElement>;
 }) {
   const duration = toMinutes(range.end) - toMinutes(range.start);
   return (

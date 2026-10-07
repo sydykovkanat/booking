@@ -111,3 +111,29 @@ test('changing the date in the month popover moves the highlight and the popover
   expect(popover.y).toBeLessThan(target.y + target.height);
   expect(popover.y + popover.height).toBeGreaterThan(target.y);
 });
+
+test('changing the date in the day-view popover keeps the popover next to the draft', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'Phones use a drawer, not an anchored popover.');
+  const date = futureDate(14);
+  await openView(page, 'day', date);
+  await createFromGap(page, 'Забронировать 09:00–18:00');
+
+  const before = (await bookingDialog(page).boundingBox())!;
+  await bookingDialog(page).getByRole('button', { name: /^Дата:/ }).click();
+  const [y, m, d] = futureDate(15).split('-').map(Number);
+  await page
+    .locator('.rdp-root')
+    .getByRole('button', { name: new RegExp(`(^|\\D)${d} ${format(new Date(y, m - 1, d), 'MMMM', { locale: ru })}`) })
+    .click();
+
+  // The view moves to the new day; the popover must never jump to the top-left corner.
+  await expect(page).toHaveURL(new RegExp(`date=${futureDate(15)}`));
+  for (let i = 0; i < 10; i++) {
+    const box = (await bookingDialog(page).boundingBox())!;
+    expect(box.x).toBeGreaterThan(100);
+    expect(box.y).toBeGreaterThan(50);
+    await page.waitForTimeout(50);
+  }
+  const after = (await bookingDialog(page).boundingBox())!;
+  expect(Math.abs(after.x - before.x)).toBeLessThan(80);
+});

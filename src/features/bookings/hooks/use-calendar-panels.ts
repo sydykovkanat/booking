@@ -1,6 +1,6 @@
 'use client';
 
-import { type RefObject, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import type { Booking, IsoDate, RoomNow, TimeRange } from '@/domain/booking';
 import { buildAgenda } from '@/domain/schedule';
@@ -14,8 +14,24 @@ import type { BookingPreview } from '../form/use-booking-form-controller';
 import { formatRange } from '../lib/format';
 import { notify } from '../lib/notify';
 
-/** `'draft-cell'`: the month cell of the draft's current day, which moves with the draft. */
-type Anchor = Element | null | RefObject<Element | null> | 'draft-cell';
+/**
+ * What a popover sits next to. `'draft'`: the draft block in the time grid; `'draft-cell'`: the
+ * month cell of the draft's day. Both move with the draft, so they are resolved on every render.
+ */
+type Anchor = Element | null | 'draft' | 'draft-cell';
+
+/** Where the anchor was last seen, in viewport coordinates. */
+export interface AnchorRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+const rectOf = (el: Element): AnchorRect => {
+  const { left, top, width, height } = el.getBoundingClientRect();
+  return { left, top, width, height };
+};
 
 export type Panel =
   | {
@@ -52,8 +68,20 @@ export function useCalendarPanels({ now, date, range, bookings, compact, navigat
   if (panel && panel !== shownPanel) setShownPanel(panel);
   const visible = panel ?? shownPanel;
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [draftCell, setDraftCell] = useState<HTMLElement | null>(null);
-  const draftRef = useRef<HTMLDivElement>(null);
+  const [draftCell, setDraftCellState] = useState<HTMLElement | null>(null);
+  const [lastAnchorRect, setLastAnchorRect] = useState<AnchorRect | null>(null);
+  const [draftBlock, setDraftBlockState] = useState<HTMLElement | null>(null);
+
+  // Callback refs (stable, so React does not re-attach them every render) that also remember
+  // where the element is: the popover falls back to that spot while the element is gone.
+  const setDraftBlock = useCallback((el: HTMLElement | null) => {
+    setDraftBlockState(el);
+    if (el) setLastAnchorRect(rectOf(el));
+  }, []);
+  const setDraftCell = useCallback((el: HTMLElement | null) => {
+    setDraftCellState(el);
+    if (el) setLastAnchorRect(rectOf(el));
+  }, []);
   const floating: Presentation = compact ? 'drawer' : 'popover';
   const outOfView = (day: IsoDate) => day < range.from || day > range.to;
 
@@ -95,7 +123,9 @@ export function useCalendarPanels({ now, date, range, bookings, compact, navigat
       anchor,
     });
 
-  const resolve = (anchor: Anchor | undefined) => (anchor === 'draft-cell' ? draftCell : anchor);
+  const resolve = (anchor: Anchor | undefined): Element | null =>
+    anchor === 'draft' ? draftBlock : anchor === 'draft-cell' ? draftCell : (anchor ?? null);
+  const target = resolve(visible?.anchor);
   const editingId = panel?.kind === 'compose' && panel.mode === 'edit' ? (panel.original?.id ?? null) : null;
   const details =
     visible?.kind === 'details' ? (bookings.find((b) => b.id === visible.booking.id) ?? visible.booking) : null;
@@ -106,10 +136,12 @@ export function useCalendarPanels({ now, date, range, bookings, compact, navigat
     /** What the surface renders: the open panel, or the one animating out. */
     visible,
     draft,
-    draftRef,
+    draftRef: setDraftBlock,
     editingId,
     details,
-    anchor: resolve(visible?.anchor),
+    /** The element to sit next to, or null while it is not in the DOM (use `lastAnchorRect`). */
+    anchorTarget: target?.isConnected ? target : null,
+    lastAnchorRect,
     activeCreateDay: panel?.kind === 'compose' && draft ? draft.day : null,
     setDraftCell,
     close,
@@ -118,14 +150,15 @@ export function useCalendarPanels({ now, date, range, bookings, compact, navigat
     createFromToolbar: () => composeOnDay(date < now.date ? now.date : date, compact ? 'drawer' : 'side'),
     createOnMonthDay: (day: IsoDate) => composeOnDay(day, floating, 'draft-cell'),
     selectRange: (day: IsoDate, slot: TimeRange, via: SelectVia) =>
-      compose(day, slot, via === 'touch' || compact ? 'drawer' : 'popover', draftRef),
+      compose(day, slot, via === 'touch' || compact ? 'drawer' : 'popover', 'draft'),
 
     showDetails: (booking: Booking, element: HTMLElement) => {
+      setLastAnchorRect(rectOf(element));
       setDraft(null);
       setPanel({ kind: 'details', key: Date.now(), booking, presentation: floating, anchor: element });
     },
     editDetails: () => {
-      if (panel?.kind === 'details' && details) edit(details, resolve(panel.anchor) ?? null);
+      if (panel?.kind === 'details' && details) edit(details, panel.anchor);
     },
     recreate: (values: BookingFormValues) => {
       if (panel?.kind !== 'compose') return;
