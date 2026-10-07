@@ -68,6 +68,8 @@ export function BookingForm({
   const now = useRoomNow();
   const [alert, setAlert] = useState<FormAlertState | null>(null);
   const [serverConflicts, setServerConflicts] = useState<Booking[]>([]);
+  // Kept apart from RHF errors: re-validation after a refetch must not wipe what the server said.
+  const [serverErrors, setServerErrors] = useState<Partial<Record<BookingField, string>>>({});
   const createMutation = useCreateBooking();
   const updateMutation = useUpdateBooking();
 
@@ -81,7 +83,7 @@ export function BookingForm({
     [now, existing, original],
   );
 
-  const { control, register, handleSubmit, getValues, setValue, setError, setFocus, trigger, formState } =
+  const { control, register, handleSubmit, getValues, setValue, setFocus, trigger, formState } =
     useForm<BookingFormValues, ValidationContext | null>({
       defaultValues: initialValues,
       resolver: bookingFormResolver,
@@ -120,7 +122,13 @@ export function BookingForm({
   const suggestion =
     alert?.kind === 'conflict' && dayCtx && validRange ? findNearestFreeSlot({ start, end }, dayCtx) : null;
 
-  const clearConflictAlert = () => setAlert((a) => (a?.kind === 'conflict' ? null : a));
+  const fieldError = (field: BookingField) => errors[field]?.message ?? serverErrors[field];
+
+  /** The user touched the schedule fields: stale server feedback about them no longer applies. */
+  const onScheduleEdited = () => {
+    setAlert((a) => (a?.kind === 'conflict' ? null : a));
+    setServerErrors(({ title }) => (title ? { title } : {}));
+  };
 
   const handleServerError = (error: unknown) => {
     if (!(error instanceof ApiError)) {
@@ -139,9 +147,9 @@ export function BookingForm({
     }
     const fields = FIELD_ORDER.filter((f) => error.fields[f]);
     if (error.isValidation && fields.length > 0) {
-      for (const f of fields) {
-        setError(f, { type: 'server', message: violationMessage(error.fields[f]!, error.conflicts) });
-      }
+      setServerErrors(
+        Object.fromEntries(fields.map((f) => [f, violationMessage(error.fields[f]!, error.conflicts)])),
+      );
       setFocus(fields[0]);
       return;
     }
@@ -150,6 +158,7 @@ export function BookingForm({
 
   const onSubmit = handleSubmit(async (values) => {
     setAlert(null);
+    setServerErrors({});
     const input = normalizeInput(values);
     try {
       const saved =
@@ -182,8 +191,8 @@ export function BookingForm({
   const submitLabel = mode === 'create' ? 'Забронировать' : 'Сохранить';
   // Start/end errors share one row under both selects; identical messages are shown once.
   const timeErrors = [
-    { id: 'booking-start', message: errors.start?.message },
-    { id: 'booking-end', message: errors.end?.message !== errors.start?.message ? errors.end?.message : undefined },
+    { id: 'booking-start', message: fieldError('start') },
+    { id: 'booking-end', message: fieldError('end') !== fieldError('start') ? fieldError('end') : undefined },
   ].filter((e): e is { id: string; message: string } => Boolean(e.message));
 
   return (
@@ -235,7 +244,7 @@ export function BookingForm({
         <Field
           id="booking-date"
           label="Дата"
-          error={errors.date?.message}
+          error={fieldError('date')}
           hint={lockedStart ? 'Встреча уже идёт — можно изменить только окончание и название' : undefined}
         >
           <Input
@@ -243,9 +252,9 @@ export function BookingForm({
             type="date"
             min={now?.date}
             disabled={lockedStart}
-            aria-invalid={Boolean(errors.date)}
-            aria-describedby={describedBy('booking-date', errors.date?.message, lockedStart)}
-            {...register('date', { onChange: clearConflictAlert })}
+            aria-invalid={Boolean(fieldError('date'))}
+            aria-describedby={describedBy('booking-date', fieldError('date'), lockedStart)}
+            {...register('date', { onChange: onScheduleEdited })}
           />
         </Field>
 
@@ -260,14 +269,14 @@ export function BookingForm({
                   placeholder={bookingsLoading ? 'Загрузка…' : 'Выберите'}
                   options={startOpts}
                   disabled={lockedStart || !dayCtx}
-                  aria-invalid={Boolean(errors.start)}
-                  aria-describedby={describedBy('booking-start', errors.start?.message)}
+                  aria-invalid={Boolean(fieldError('start'))}
+                  aria-describedby={describedBy('booking-start', fieldError('start'))}
                   {...field}
                   onChange={(e) => {
                     const next = e.target.value;
                     if (dayCtx) setValue('end', pickEnd(next, getValues(), dayCtx), { shouldDirty: true });
                     field.onChange(next);
-                    clearConflictAlert();
+                    onScheduleEdited();
                   }}
                 />
               )}
@@ -283,12 +292,12 @@ export function BookingForm({
                   placeholder="Выберите"
                   options={endOpts}
                   disabled={!dayCtx || !isValidTime(start)}
-                  aria-invalid={Boolean(errors.end)}
-                  aria-describedby={describedBy('booking-end', errors.end?.message)}
+                  aria-invalid={Boolean(fieldError('end'))}
+                  aria-describedby={describedBy('booking-end', fieldError('end'))}
                   {...field}
                   onChange={(e) => {
                     field.onChange(e.target.value);
-                    clearConflictAlert();
+                    onScheduleEdited();
                   }}
                 />
               )}
@@ -315,7 +324,7 @@ export function BookingForm({
         <Field
           id="booking-title"
           label="Название (необязательно)"
-          error={errors.title?.message}
+          error={fieldError('title')}
           hint={`${title.length}/${BOOKING_RULES.titleMaxLength}`}
         >
           <Input
@@ -323,9 +332,9 @@ export function BookingForm({
             placeholder="Например, планирование спринта"
             autoComplete="off"
             maxLength={BOOKING_RULES.titleMaxLength + 20}
-            aria-invalid={Boolean(errors.title)}
-            aria-describedby={describedBy('booking-title', errors.title?.message, true)}
-            {...register('title')}
+            aria-invalid={Boolean(fieldError('title'))}
+            aria-describedby={describedBy('booking-title', fieldError('title'), true)}
+            {...register('title', { onChange: () => setServerErrors(({ title: _, ...rest }) => rest) })}
           />
         </Field>
       </fieldset>

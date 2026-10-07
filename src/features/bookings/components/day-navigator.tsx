@@ -31,11 +31,12 @@ export function DayNavigator({ date, now, onChange }: DayNavigatorProps) {
       <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
         <PopoverTrigger
           render={
-            <Button variant="outline" className="min-w-0 flex-1 justify-start gap-2.5 px-4 sm:flex-none sm:min-w-64" />
+            <Button variant="outline" className="min-w-0 flex-1 justify-center gap-2.5 px-3 sm:flex-none sm:min-w-64 sm:justify-start sm:px-4" />
           }
         >
-          <CalendarDaysIcon className="text-muted-foreground" aria-hidden />
-          <span className="truncate font-semibold">{formatDayTitle(date, now)}</span>
+          <CalendarDaysIcon className="text-muted-foreground max-[400px]:hidden" aria-hidden />
+          <span className="truncate font-semibold sm:hidden">{formatDayTitle(date, now, { short: true })}</span>
+          <span className="truncate font-semibold max-sm:hidden">{formatDayTitle(date, now)}</span>
           <span className="sr-only">, открыть календарь</span>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-auto p-1">
@@ -60,7 +61,7 @@ export function DayNavigator({ date, now, onChange }: DayNavigatorProps) {
       </Button>
 
       {!isToday && (
-        <Button variant="ghost" className="text-primary" onClick={() => onChange(now.date)}>
+        <Button variant="ghost" className="px-3 text-primary" onClick={() => onChange(now.date)}>
           Сегодня
         </Button>
       )}

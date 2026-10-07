@@ -25,14 +25,14 @@ export function formatDuration(minutes: number): string {
 
 const RELATIVE_DAYS: Record<number, string> = { [-1]: 'Вчера', 0: 'Сегодня', 1: 'Завтра' };
 
-/** "Сегодня, 8 октября" or "Пятница, 10 октября". */
-export function formatDayTitle(date: IsoDate, now: RoomNow): string {
+/** "Сегодня, 8 октября" or "Пятница, 10 октября"; `short` gives "Сегодня, 8 окт." */
+export function formatDayTitle(date: IsoDate, now: RoomNow, { short = false } = {}): string {
   const local = isoDateToLocalDate(date);
-  const dayMonth = format(local, 'd MMMM', { locale: ru });
+  const dayMonth = format(local, short ? 'd MMM' : 'd MMMM', { locale: ru });
   const offset = [-1, 0, 1].find((o) => addDaysToIsoDate(now.date, o) === date);
   if (offset !== undefined) return `${RELATIVE_DAYS[offset]}, ${dayMonth}`;
 
-  const weekday = format(local, 'EEEE', { locale: ru });
+  const weekday = format(local, short ? 'EEEEEE' : 'EEEE', { locale: ru });
   const year = date.slice(0, 4) === now.date.slice(0, 4) ? '' : ` ${date.slice(0, 4)}`;
   return `${weekday[0].toUpperCase()}${weekday.slice(1)}, ${dayMonth}${year}`;
 }
