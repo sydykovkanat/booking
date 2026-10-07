@@ -1,105 +1,100 @@
 'use client';
 
-import { IconPlus } from '@tabler/icons-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { type MouseEvent, useState } from 'react';
+import { type PointerEvent, type RefObject, useRef, useState } from 'react';
 
 import type { Booking, IsoDate, RoomNow, TimeRange } from '@/domain/booking';
 import { BOOKING_RULES } from '@/domain/config';
-import { buildAgenda } from '@/domain/schedule';
-import { fromMinutes, toMinutes } from '@/domain/time';
+import { buildAgenda, type DayContext } from '@/domain/schedule';
+import { rangeAtMinute, rangeFromDrag } from '@/domain/selection';
+import { toMinutes } from '@/domain/time';
 import { cn } from '@/lib/utils';
 
-import { formatRange, isoDateToLocalDate } from '../lib/format';
+import { formatDuration, formatRange, isoDateToLocalDate } from '../lib/format';
 import { PAST_TONE, toneFor } from '../lib/tone';
-import { BookingPopover } from './booking-popover';
 
 const DAY_START = toMinutes(BOOKING_RULES.workStart);
 const DAY_END = toMinutes(BOOKING_RULES.workEnd);
-const STEP = BOOKING_RULES.stepMinutes;
-const MIN_DURATION = BOOKING_RULES.minDurationMinutes;
-const PREFERRED_DURATION = 60;
-const HOURS = Array.from({ length: (DAY_END - DAY_START) / 60 }, (_, i) => DAY_START / 60 + i);
+const SPAN = DAY_END - DAY_START;
+const HOURS = Array.from({ length: SPAN / 60 + 1 }, (_, i) => DAY_START / 60 + i);
+
+/** Vertical position as a percentage, so the grid can stretch to any height. */
+const pct = (minutes: number) => `${((Math.min(Math.max(minutes, DAY_START), DAY_END) - DAY_START) / SPAN) * 100}%`;
+const box = (range: TimeRange) => ({
+  top: pct(toMinutes(range.start)),
+  height: `calc(${pct(toMinutes(range.end))} - ${pct(toMinutes(range.start))})`,
+});
+
+export interface Draft extends TimeRange {
+  day: IsoDate;
+  conflict: boolean;
+}
+
+export type SelectVia = 'pointer' | 'touch' | 'keyboard';
 
 interface TimeGridProps {
   days: readonly IsoDate[];
   now: RoomNow;
   bookings: readonly Booking[];
-  /** Vertical scale; 1 hour = 60 × pxPerMinute pixels. */
-  pxPerMinute: number;
-  onCreate: (date: IsoDate, range?: TimeRange) => void;
-  onOpenDay?: (date: IsoDate) => void;
-  onEdit: (booking: Booking) => void;
-  onDelete: (booking: Booking) => void;
+  draft: Draft | null;
+  /** Attached to the draft block so a popover can sit next to it. */
+  draftRef: RefObject<HTMLDivElement | null>;
+  editingId: string | null;
+  onSelectRange: (day: IsoDate, range: TimeRange, via: SelectVia) => void;
+  onSelectBooking: (booking: Booking, element: HTMLElement) => void;
+  onOpenDay?: (day: IsoDate) => void;
 }
 
-/** Week and day views: one column per day, 09:00–18:00, free gaps are click-to-book buttons. */
-export function TimeGrid({ days, now, bookings, pxPerMinute, onCreate, onOpenDay, onEdit, onDelete }: TimeGridProps) {
-  const top = (minutes: number) => (minutes - DAY_START) * pxPerMinute;
-  const gridHeight = top(DAY_END);
+/** Week and day views. Mouse: drag to select. Touch: tap. Keyboard: Enter on a free window. */
+export function TimeGrid({ days, onOpenDay, ...columnProps }: TimeGridProps) {
   const single = days.length === 1;
 
   return (
-    <div className="min-h-0 flex-1 overflow-x-auto">
-      <div className={cn('grid', single ? 'min-w-0' : 'min-w-[48rem]')} style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}>
-        {/* Header row */}
-        <div />
-        {days.map((day) => (
-          <DayHeader key={day} day={day} now={now} single={single} onOpenDay={onOpenDay} />
-        ))}
+    <div className="flex min-h-0 flex-1 flex-col overflow-x-auto">
+      <div className={cn('flex min-h-[34rem] flex-1 flex-col', !single && 'min-w-[46rem]')}>
+        {!single && (
+          <div className="grid grid-cols-[3.5rem_repeat(7,minmax(0,1fr))] pb-2">
+            <div />
+            {days.map((day) => (
+              <WeekdayHeader key={day} day={day} now={columnProps.now} onOpenDay={onOpenDay} />
+            ))}
+          </div>
+        )}
 
-        {/* Hour gutter */}
-        <div aria-hidden className="relative" style={{ height: gridHeight }}>
-          {[...HOURS, DAY_END / 60].map((h, i) => (
-            <span
-              key={h}
-              className={cn(
-                'absolute right-2 text-xs text-muted-foreground tabular-nums',
-                i === 0 ? 'translate-y-0' : i === HOURS.length ? '-translate-y-full' : '-translate-y-1/2',
-              )}
-              style={{ top: top(h * 60) }}
-            >
-              {String(h).padStart(2, '0')}:00
-            </span>
+        <div
+          className="grid flex-1 gap-px overflow-hidden rounded-xl bg-border/70"
+          style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}
+        >
+          <HourGutter />
+          {days.map((day) => (
+            <DayColumn key={day} day={day} {...columnProps} />
           ))}
         </div>
-
-        {days.map((day) => (
-          <DayColumn
-            key={day}
-            day={day}
-            now={now}
-            bookings={bookings.filter((b) => b.date === day)}
-            pxPerMinute={pxPerMinute}
-            onCreate={onCreate}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        ))}
       </div>
     </div>
   );
 }
 
-function DayHeader({ day, now, single, onOpenDay }: { day: IsoDate; now: RoomNow; single: boolean; onOpenDay?: (d: IsoDate) => void }) {
+function WeekdayHeader({ day, now, onOpenDay }: { day: IsoDate; now: RoomNow; onOpenDay?: (d: IsoDate) => void }) {
   const local = isoDateToLocalDate(day);
   const isToday = day === now.date;
-  if (single) return <div className="h-2" />;
 
   return (
     <button
       type="button"
       onClick={() => onOpenDay?.(day)}
       aria-label={`Открыть ${format(local, 'd MMMM, EEEE', { locale: ru })}`}
-      className="focus-ring flex flex-col items-center gap-1 rounded-lg pb-3 transition-colors duration-fast hover:bg-muted/60"
+      className="focus-ring flex items-center justify-center gap-2 rounded-lg py-1.5 transition-colors duration-fast hover:bg-muted"
     >
-      <span className="text-ui-sm text-muted-foreground">{format(local, 'EEEEEE', { locale: ru })}</span>
+      <span className={cn('text-ui-sm first-letter:uppercase', day < now.date ? 'text-muted-foreground/70' : 'text-muted-foreground')}>
+        {format(local, 'EEEEEE', { locale: ru })}
+      </span>
       <span
         className={cn(
           'flex size-8 items-center justify-center rounded-full text-ui font-semibold tabular-nums',
           isToday && 'bg-primary text-primary-foreground',
-          day < now.date && !isToday && 'text-muted-foreground',
+          day < now.date && 'text-muted-foreground/70',
         )}
       >
         {format(local, 'd')}
@@ -108,150 +103,204 @@ function DayHeader({ day, now, single, onOpenDay }: { day: IsoDate; now: RoomNow
   );
 }
 
-interface DayColumnProps {
-  day: IsoDate;
-  now: RoomNow;
-  bookings: readonly Booking[];
-  pxPerMinute: number;
-  onCreate: (date: IsoDate, range?: TimeRange) => void;
-  onEdit: (booking: Booking) => void;
-  onDelete: (booking: Booking) => void;
+function HourGutter() {
+  return (
+    <div aria-hidden className="relative bg-card">
+      {HOURS.map((h, i) => (
+        <span
+          key={h}
+          className={cn(
+            'absolute right-2 text-xs text-muted-foreground tabular-nums',
+            i === 0 ? 'top-1' : i === HOURS.length - 1 ? 'bottom-1' : '-translate-y-1/2',
+          )}
+          style={i === 0 || i === HOURS.length - 1 ? undefined : { top: pct(h * 60) }}
+        >
+          {String(h).padStart(2, '0')}:00
+        </span>
+      ))}
+    </div>
+  );
 }
 
-function DayColumn({ day, now, bookings, pxPerMinute, onCreate, onEdit, onDelete }: DayColumnProps) {
-  const top = (minutes: number) => (minutes - DAY_START) * pxPerMinute;
-  const box = (range: TimeRange) => ({
-    top: top(toMinutes(range.start)),
-    height: (toMinutes(range.end) - toMinutes(range.start)) * pxPerMinute,
-  });
-  const pastUntil = day < now.date ? DAY_END : day === now.date ? Math.min(Math.max(now.minutes, DAY_START), DAY_END) : DAY_START;
-  const items = buildAgenda({ date: day, bookings, now });
+type ColumnProps = Omit<TimeGridProps, 'days' | 'onOpenDay'> & { day: IsoDate };
+
+function DayColumn({ day, now, bookings, draft, draftRef, editingId, onSelectRange, onSelectBooking }: ColumnProps) {
+  const columnRef = useRef<HTMLDivElement>(null);
+  const [drag, setDrag] = useState<{ anchor: number; current: number } | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const lastPointer = useRef<string>('mouse');
+
+  const ctx: DayContext = { date: day, bookings, now };
+  const items = buildAgenda(ctx);
+  const isPastDay = day < now.date;
+  const pastUntil = isPastDay ? DAY_END : day === now.date ? now.minutes : DAY_START;
+
+  const minuteAt = (clientY: number) => {
+    const rect = columnRef.current!.getBoundingClientRect();
+    return DAY_START + ((clientY - rect.top) / rect.height) * SPAN;
+  };
+
+  const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    lastPointer.current = event.pointerType;
+    if (event.pointerType !== 'mouse' || event.button !== 0) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    const minute = minuteAt(event.clientY);
+    setDrag({ anchor: minute, current: minute });
+  };
+
+  const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType !== 'mouse') return;
+    const minute = minuteAt(event.clientY);
+    if (drag) setDrag({ ...drag, current: minute });
+    else setHover(minute);
+  };
+
+  const onPointerUp = () => {
+    if (!drag) return;
+    const range = rangeFromDrag(ctx, drag.anchor, drag.current);
+    setDrag(null);
+    if (range) onSelectRange(day, range, 'pointer');
+  };
+
+  const dragRange = drag ? rangeFromDrag(ctx, drag.anchor, drag.current) : null;
+  const hoverRange = !drag && hover !== null && draft?.day !== day ? rangeAtMinute(ctx, hover) : null;
+  const ownDraft = draft?.day === day ? draft : null;
 
   return (
-    <div className="relative ml-px" style={{ height: top(DAY_END) }}>
-      <div aria-hidden className="absolute inset-0 overflow-hidden rounded-lg">
-        {HOURS.map((h, i) => (
-          <div
-            key={h}
-            className={cn('absolute inset-x-0', i % 2 === 0 ? 'bg-muted/80' : 'bg-muted/40')}
-            style={{ top: top(h * 60), height: 60 * pxPerMinute }}
-          />
+    <div
+      ref={columnRef}
+      className={cn('relative bg-card', isPastDay && 'bg-muted/50')}
+      onPointerLeave={() => setHover(null)}
+    >
+      {/* Hour lines and the dimmed past (no hatching: it competed with the bookings). */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        {HOURS.slice(1, -1).map((h) => (
+          <div key={h} className="absolute inset-x-0 h-px bg-border/60" style={{ top: pct(h * 60) }} />
         ))}
-        {pastUntil > DAY_START && (
-          <div
-            className="absolute inset-x-0 top-0 bg-[repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_oklch,var(--foreground)_5%,transparent)_6px_8px)]"
-            style={{ height: top(pastUntil) }}
-          />
+        {!isPastDay && pastUntil > DAY_START && (
+          <div className="absolute inset-x-0 top-0 bg-muted/60" style={{ height: pct(pastUntil) }} />
         )}
       </div>
 
       <ol aria-label={format(isoDateToLocalDate(day), 'd MMMM', { locale: ru })} className="absolute inset-0">
         {items.map((item) =>
           item.kind === 'free' ? (
-            <FreeGap key={`free-${item.start}`} day={day} gap={item} pxPerMinute={pxPerMinute} onCreate={onCreate} />
-          ) : (
-            <li key={item.booking.id} className="absolute inset-x-0.5" style={box(item.booking)}>
-              <BookingPopover
-                booking={item.booking}
-                now={now}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                trigger={<BookingBlock booking={item.booking} past={item.phase === 'past'} ongoing={item.phase === 'ongoing'} />}
+            <li key={`free-${item.start}`} className="absolute inset-x-0" style={box(item)}>
+              <button
+                type="button"
+                aria-label={`Забронировать ${formatRange(item)}`}
+                onPointerDown={onPointerDown}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onClick={(event) => {
+                  // Mouse selections are handled on pointer up; this is touch and keyboard.
+                  if (event.detail === 0) {
+                    onSelectRange(day, rangeAtMinute(ctx, toMinutes(item.start))!, 'keyboard');
+                  } else if (lastPointer.current !== 'mouse') {
+                    const range = rangeAtMinute(ctx, minuteAt(event.clientY));
+                    if (range) onSelectRange(day, range, 'touch');
+                  }
+                }}
+                className="focus-ring absolute inset-0 cursor-cell rounded-sm select-none"
               />
+            </li>
+          ) : (
+            <li
+              key={item.booking.id}
+              className={cn('absolute inset-x-1', item.booking.id === editingId && 'opacity-40')}
+              style={box(item.booking)}
+            >
+              <BookingBlock booking={item.booking} phase={item.phase} onSelect={onSelectBooking} />
             </li>
           ),
         )}
       </ol>
 
+      {hoverRange && <Ghost range={hoverRange} />}
+      {dragRange && <DraftBlock range={dragRange} conflict={false} />}
+      {!dragRange && ownDraft && <DraftBlock range={ownDraft} conflict={ownDraft.conflict} innerRef={draftRef} />}
+
       {day === now.date && now.minutes > DAY_START && now.minutes < DAY_END && (
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 z-20 flex items-center" style={{ top: top(now.minutes) }}>
-          <span className="-ml-1 size-2 rounded-full bg-destructive" />
-          <span className="h-0.5 flex-1 bg-destructive/70" />
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 z-20 flex items-center" style={{ top: pct(now.minutes) }}>
+          <span className="-ml-1 size-2.5 rounded-full bg-destructive" />
+          <span className="h-0.5 flex-1 bg-destructive" />
         </div>
       )}
     </div>
   );
 }
 
-interface BookingBlockProps extends React.ComponentProps<'button'> {
+function BookingBlock({
+  booking,
+  phase,
+  onSelect,
+}: {
   booking: Booking;
-  past: boolean;
-  ongoing: boolean;
-}
-
-function BookingBlock({ booking, past, ongoing, className, ...props }: BookingBlockProps) {
-  const tone = past ? PAST_TONE : toneFor(booking.id);
+  phase: 'past' | 'ongoing' | 'upcoming';
+  onSelect: (booking: Booking, element: HTMLElement) => void;
+}) {
+  const tone = phase === 'past' ? PAST_TONE : toneFor(booking.id);
   const duration = toMinutes(booking.end) - toMinutes(booking.start);
+  const compact = duration <= 30;
   const title = booking.title ?? 'Без названия';
 
   return (
     <button
       type="button"
-      aria-label={`${formatRange(booking)}, ${title}${ongoing ? ', идёт сейчас' : ''}${past ? ', завершена' : ''}`}
+      onClick={(event) => onSelect(booking, event.currentTarget)}
+      aria-label={`${formatRange(booking)}, ${title}${phase === 'ongoing' ? ', идёт сейчас' : ''}${phase === 'past' ? ', завершена' : ''}`}
       className={cn(
-        'focus-ring relative flex size-full flex-col overflow-hidden rounded-md py-1 pr-2 pl-3 text-left text-xs transition-colors duration-fast',
+        'focus-ring relative z-10 flex size-full overflow-hidden rounded-lg pr-2 pl-3 text-left transition-colors duration-fast',
+        compact ? 'items-center gap-2' : 'flex-col gap-0.5 py-1.5',
         tone.chip,
-        className,
       )}
-      {...props}
     >
-      <span aria-hidden className={cn('absolute inset-y-1 left-1 w-0.5 rounded-full', tone.bar)} />
-      <span className={cn('truncate font-semibold', past && 'line-through')}>{title}</span>
-      {duration > 30 && <span className="truncate tabular-nums opacity-70">{formatRange(booking)}</span>}
+      <span aria-hidden className={cn('absolute inset-y-1.5 left-1 w-[3px] rounded-full', tone.bar)} />
+      <span className={cn('truncate text-ui-sm font-semibold', phase === 'past' && 'line-through decoration-1')}>{title}</span>
+      <span className={cn('shrink-0 text-xs tabular-nums opacity-75', compact && 'ml-auto')}>
+        {formatRange(booking)}
+        {!compact && duration >= 60 && ` · ${formatDuration(duration)}`}
+      </span>
     </button>
   );
 }
 
-interface FreeGapProps {
-  day: IsoDate;
-  gap: TimeRange;
-  pxPerMinute: number;
-  onCreate: (date: IsoDate, range?: TimeRange) => void;
-}
-
-/** Pointer users get the start under the cursor (snapped to 15 min); keyboard users get the gap start. */
-function FreeGap({ day, gap, pxPerMinute, onCreate }: FreeGapProps) {
-  const [hoverStart, setHoverStart] = useState<number | null>(null);
-  const gapStart = toMinutes(gap.start);
-  const gapEnd = toMinutes(gap.end);
-
-  const rangeAt = (start: number): TimeRange => ({
-    start: fromMinutes(start),
-    end: fromMinutes(Math.min(start + PREFERRED_DURATION, gapEnd)),
-  });
-
-  const startFromPointer = (event: MouseEvent<HTMLButtonElement>) => {
-    const offset = event.clientY - event.currentTarget.getBoundingClientRect().top;
-    const snapped = gapStart + Math.floor(offset / pxPerMinute / STEP) * STEP;
-    return Math.min(Math.max(snapped, gapStart), gapEnd - MIN_DURATION);
-  };
-
-  const hover = hoverStart === null ? null : rangeAt(hoverStart);
-
+function DraftBlock({
+  range,
+  conflict,
+  innerRef,
+}: {
+  range: TimeRange;
+  conflict: boolean;
+  innerRef?: RefObject<HTMLDivElement | null>;
+}) {
+  const duration = toMinutes(range.end) - toMinutes(range.start);
   return (
-    <li
-      className="absolute inset-x-0"
-      style={{ top: (gapStart - DAY_START) * pxPerMinute, height: (gapEnd - gapStart) * pxPerMinute }}
+    <div
+      ref={innerRef}
+      aria-hidden
+      className={cn(
+        'pointer-events-none absolute inset-x-1 z-30 flex flex-col overflow-hidden rounded-lg px-3 py-1.5 shadow-floating transition-[top,height] duration-fast ease-out',
+        conflict ? 'bg-destructive text-white' : 'bg-primary text-primary-foreground',
+      )}
+      style={box(range)}
     >
-      <button
-        type="button"
-        aria-label={`Забронировать ${formatRange(gap)}`}
-        onClick={(e) => onCreate(day, rangeAt(e.detail === 0 ? gapStart : startFromPointer(e)))}
-        onMouseMove={(e) => setHoverStart(startFromPointer(e))}
-        onMouseLeave={() => setHoverStart(null)}
-        className="focus-ring relative size-full cursor-copy rounded-md"
-      >
-        {hover && (
-          <span
-            aria-hidden
-            className="absolute inset-x-0.5 flex items-start gap-1 overflow-hidden rounded-md bg-primary/20 px-2 py-1 text-xs font-medium text-primary-strong"
-            style={{ top: (toMinutes(hover.start) - gapStart) * pxPerMinute, height: (toMinutes(hover.end) - toMinutes(hover.start)) * pxPerMinute }}
-          >
-            <IconPlus className="size-3.5 shrink-0" /> {formatRange(hover)}
-          </span>
-        )}
-      </button>
-    </li>
+      <span className="truncate text-ui-sm font-semibold">{conflict ? 'Время занято' : 'Новая бронь'}</span>
+      <span className="text-xs tabular-nums opacity-80">
+        {formatRange(range)} · {formatDuration(duration)}
+      </span>
+    </div>
   );
 }
 
+function Ghost({ range }: { range: TimeRange }) {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-1 z-0 rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-medium text-primary-strong tabular-nums"
+      style={box(range)}
+    >
+      + {formatRange(range)}
+    </div>
+  );
+}

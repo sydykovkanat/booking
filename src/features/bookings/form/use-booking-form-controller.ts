@@ -1,13 +1,13 @@
 'use client';
 
-import { type BaseSyntheticEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { type BaseSyntheticEvent, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useForm, useWatch } from 'react-hook-form';
 
 import type { Booking, TimeRange } from '@/domain/booking';
 import { findConflicts } from '@/domain/overlap';
 import { type BookingField, getBookingPhase, normalizeInput, type ValidationContext } from '@/domain/rules';
-import { type DayContext, endOptions, findNearestFreeSlot, startOptions } from '@/domain/schedule';
+import { type DayContext, endOptions, findNearestFreeSlot } from '@/domain/schedule';
 import { isValidIsoDate, isValidTime, toMinutes } from '@/domain/time';
 import { ApiError } from '@/lib/api/api-error';
 
@@ -17,7 +17,7 @@ import { bookingKeys } from '../api/query-keys';
 import { useRoomNow } from '../hooks/use-room-now';
 import { apiErrorMessage, violationMessage } from '../lib/messages';
 import { bookingFormResolver, type BookingFormValues } from './booking-form-schema';
-import { durationOf, pickEnd } from './pick-end';
+import { durationOf } from './duration';
 
 export type FormAlertState =
   | { kind: 'conflict'; conflicts: Booking[] }
@@ -30,17 +30,12 @@ export interface BookingPreview extends TimeRange {
   conflictIds: string[];
 }
 
-/** Why a submit did not go through: the time itself, or something else. */
-export type RejectionKind = 'time' | 'other';
-
 export interface BookingFormControllerOptions {
   mode: 'create' | 'edit';
   initialValues: BookingFormValues;
   original?: Booking;
   onSuccess: (booking: Booking) => void;
   onPreviewChange?: (preview: BookingPreview | null) => void;
-  /** Called when a submit is rejected, so a multi-step UI can go back to the time step. */
-  onRejected?: (kind: RejectionKind) => void;
 }
 
 const FIELD_ORDER: BookingField[] = ['date', 'start', 'end', 'title'];
@@ -58,7 +53,6 @@ export function useBookingFormController({
   original: originalSnapshot,
   onSuccess,
   onPreviewChange,
-  onRejected,
 }: BookingFormControllerOptions) {
   const now = useRoomNow();
   const createMutation = useCreateBooking();
@@ -126,8 +120,10 @@ export function useBookingFormController({
     return { date: formDate, start, end, conflict: conflicts.length > 0, conflictIds: conflicts.map((b) => b.id) };
   }, [validRange, formDate, start, end, existing, original?.id]);
 
-  useEffect(() => onPreviewChange?.(preview), [preview, onPreviewChange]);
-  useEffect(() => () => onPreviewChange?.(null), [onPreviewChange]);
+  // An Effect Event: consumers may pass an inline callback without causing a render loop.
+  const reportPreview = useEffectEvent((next: BookingPreview | null) => onPreviewChange?.(next));
+  useEffect(() => reportPreview(preview), [preview]);
+  useEffect(() => () => reportPreview(null), []);
 
   const handleServerError = (error: unknown, attempted: Omit<Booking, 'id'>, sentAtUpdate: number) => {
     const wasTransient = lastAttemptWasTransient.current;
@@ -135,7 +131,6 @@ export function useBookingFormController({
 
     if (!(error instanceof ApiError)) {
       setAlert({ kind: 'error', message: apiErrorMessage(error) });
-      onRejected?.('other');
       return;
     }
     if (error.isConflict) {
@@ -148,24 +143,20 @@ export function useBookingFormController({
       // Trusted only if the post-mutation refetch has not landed (e.g. it failed).
       setServerConflicts({ at: sentAtUpdate, items: error.conflicts });
       setAlert({ kind: 'conflict', conflicts: error.conflicts });
-      onRejected?.('time');
       setFocus('start');
       return;
     }
     if (error.isNotFound && mode === 'edit') {
       setAlert({ kind: 'not-found' });
-      onRejected?.('other');
       return;
     }
     const fields = FIELD_ORDER.filter((f) => error.fields[f]);
     if (error.isValidation && fields.length > 0) {
       setServerErrors(Object.fromEntries(fields.map((f) => [f, violationMessage(error.fields[f]!, error.conflicts)])));
-      onRejected?.(fields.some((f) => f !== 'title') ? 'time' : 'other');
       setFocus(fields[0]);
       return;
     }
     setAlert({ kind: 'error', message: apiErrorMessage(error) });
-    onRejected?.('other');
   };
 
   const onValid = async (values: BookingFormValues) => {
@@ -186,9 +177,7 @@ export function useBookingFormController({
   };
   // handleSubmit is created per event so the callback (which touches a ref) never runs during render.
   const submit = (event?: BaseSyntheticEvent) =>
-    form.handleSubmit(onValid, (errors) => {
-      onRejected?.(errors.date || errors.start || errors.end ? 'time' : 'other');
-    })(event);
+    form.handleSubmit(onValid)(event);
 
   /** The user changed the schedule fields: stale server feedback about them no longer applies. */
   const onScheduleEdited = () => {
@@ -202,39 +191,27 @@ export function useBookingFormController({
     form,
     now,
     alert: originalGone && !alert ? ({ kind: 'not-found' } as const) : alert,
-    phase,
     lockedStart: phase === 'ongoing',
     preview,
-    validRange,
-    formDate,
     dayLoading: formDate !== null && day.isPending,
-    dayError: day.isError,
-    retryDay: () => day.refetch(),
     dayContext: dayCtx,
-    startOptions: dayCtx ? startOptions(dayCtx) : [],
     endOptions: dayCtx && isValidTime(start) ? endOptions(start, dayCtx) : [],
     suggestion: alert?.kind === 'conflict' && dayCtx && validRange ? findNearestFreeSlot({ start, end }, dayCtx) : null,
     fieldError: (field: BookingField) => formState.errors[field]?.message ?? serverErrors[field],
     submit,
     isSubmitting: formState.isSubmitting,
     getValues,
-    /** Validates only the schedule fields (for the "Next" step). */
-    validateTime: () => trigger(['date', 'start', 'end']),
 
     setDate(value: string) {
       setValue('date', value, { shouldDirty: true, shouldValidate: shouldRevalidate });
       onScheduleEdited();
     },
-    setStart(value: string) {
-      preferredDuration.current = durationOf(getValues()) ?? preferredDuration.current;
-      if (dayCtx) setValue('end', pickEnd(value, preferredDuration.current, dayCtx), { shouldDirty: true });
-      setValue('start', value, { shouldDirty: true, shouldValidate: shouldRevalidate });
-      if (shouldRevalidate) void trigger('end');
-      onScheduleEdited();
-    },
-    setEnd(value: string) {
-      preferredDuration.current = durationOf({ start, end: value }) ?? preferredDuration.current;
-      setValue('end', value, { shouldDirty: true, shouldValidate: shouldRevalidate });
+    /** Sets both ends at once (drag selection, stepper, suggestion). */
+    setRange(range: TimeRange) {
+      preferredDuration.current = durationOf(range) ?? preferredDuration.current;
+      setValue('start', range.start, { shouldDirty: true, shouldValidate: shouldRevalidate });
+      setValue('end', range.end, { shouldDirty: true, shouldValidate: shouldRevalidate });
+      if (shouldRevalidate) void trigger(['start', 'end']);
       onScheduleEdited();
     },
     clearTitleError() {

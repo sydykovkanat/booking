@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils';
 
 import { isoDateToLocalDate } from '../lib/format';
 import { PAST_TONE, toneFor } from '../lib/tone';
-import { BookingPopover } from './booking-popover';
 
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const MAX_CHIPS = 3;
@@ -19,19 +18,23 @@ interface MonthViewProps {
   date: IsoDate;
   now: RoomNow;
   bookings: readonly Booking[];
-  onCreate: (date: IsoDate) => void;
-  onOpenDay: (date: IsoDate) => void;
-  onEdit: (booking: Booking) => void;
-  onDelete: (booking: Booking) => void;
+  /** Phones: tapping a day selects it (its bookings are listed below) instead of creating. */
+  compact: boolean;
+  /** Desktop: id of the cell that anchors the open create popover. */
+  activeCreateDay: IsoDate | null;
+  onCreate: (day: IsoDate, anchor: HTMLElement) => void;
+  onPickDay: (day: IsoDate) => void;
+  onOpenDay: (day: IsoDate) => void;
+  onSelectBooking: (booking: Booking, element: HTMLElement) => void;
 }
 
 /** 6×7 month grid. Lines are 1px gaps between cells, not borders. */
-export function MonthView({ date, now, bookings, onCreate, onOpenDay, onEdit, onDelete }: MonthViewProps) {
+export function MonthView({ date, ...cellProps }: MonthViewProps) {
   const month = date.slice(0, 7);
-  const byDate = Map.groupBy(bookings, (b) => b.date);
+  const byDate = Map.groupBy(cellProps.bookings, (b) => b.date);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className={cn('flex flex-col', !cellProps.compact && 'min-h-0 flex-1')}>
       <div className="grid grid-cols-7 pb-2" aria-hidden>
         {WEEKDAYS.map((day) => (
           <div key={day} className="text-center text-ui-sm text-muted-foreground">
@@ -40,20 +43,21 @@ export function MonthView({ date, now, bookings, onCreate, onOpenDay, onEdit, on
         ))}
       </div>
 
-      <div role="grid" aria-label={format(isoDateToLocalDate(date), 'LLLL yyyy', { locale: ru })} className="grid flex-1 auto-rows-fr gap-px overflow-hidden rounded-xl bg-border">
+      <div
+        role="grid"
+        aria-label={format(isoDateToLocalDate(date), 'LLLL yyyy', { locale: ru })}
+        className="grid flex-1 auto-rows-fr gap-px overflow-hidden rounded-xl bg-border/70"
+      >
         {monthGrid(date).map((week) => (
           <div key={week[0]} role="row" className="grid grid-cols-7 gap-px">
             {week.map((day) => (
               <DayCell
                 key={day}
                 day={day}
-                now={now}
+                selected={day === date}
                 inMonth={day.startsWith(month)}
-                bookings={byDate.get(day) ?? []}
-                onCreate={onCreate}
-                onOpenDay={onOpenDay}
-                onEdit={onEdit}
-                onDelete={onDelete}
+                dayBookings={byDate.get(day) ?? []}
+                {...cellProps}
               />
             ))}
           </div>
@@ -63,32 +67,84 @@ export function MonthView({ date, now, bookings, onCreate, onOpenDay, onEdit, on
   );
 }
 
-interface DayCellProps extends Omit<MonthViewProps, 'date' | 'bookings'> {
+interface DayCellProps extends Omit<MonthViewProps, 'date'> {
   day: IsoDate;
+  selected: boolean;
   inMonth: boolean;
-  bookings: readonly Booking[];
+  dayBookings: readonly Booking[];
 }
 
-function DayCell({ day, now, inMonth, bookings, onCreate, onOpenDay, onEdit, onDelete }: DayCellProps) {
+function DayCell({
+  day,
+  now,
+  selected,
+  inMonth,
+  dayBookings,
+  compact,
+  activeCreateDay,
+  onCreate,
+  onPickDay,
+  onOpenDay,
+  onSelectBooking,
+}: DayCellProps) {
   const isToday = day === now.date;
   const isPast = day < now.date;
   const label = format(isoDateToLocalDate(day), 'd MMMM, EEEE', { locale: ru });
-  const visible = bookings.slice(0, MAX_CHIPS);
-  const hidden = bookings.length - visible.length;
+  const visible = dayBookings.slice(0, MAX_CHIPS);
+  const hidden = dayBookings.length - visible.length;
+
+  const number = (
+    <span
+      className={cn(
+        'flex size-7 items-center justify-center rounded-full text-ui-sm tabular-nums transition-colors duration-fast',
+        isToday && 'bg-primary font-semibold text-primary-foreground',
+        !isToday && selected && compact && 'bg-foreground font-semibold text-background',
+        !isToday && !(selected && compact) && (!inMonth || isPast) && 'text-muted-foreground',
+      )}
+    >
+      {Number(day.slice(8))}
+    </span>
+  );
+
+  if (compact) {
+    return (
+      <button
+        type="button"
+        role="gridcell"
+        aria-selected={selected}
+        aria-label={`${label}${dayBookings.length ? `, броней: ${dayBookings.length}` : ''}`}
+        onClick={() => onPickDay(day)}
+        className={cn(
+          'focus-ring flex aspect-square flex-col items-center justify-center gap-1',
+          inMonth ? 'bg-card' : 'bg-muted/60',
+        )}
+      >
+        {number}
+        <span aria-hidden className="flex h-1.5 gap-0.5">
+          {dayBookings.slice(0, 3).map((b) => (
+            <span key={b.id} className={cn('size-1.5 rounded-full', b.date < now.date ? PAST_TONE.bar : toneFor(b.id).bar)} />
+          ))}
+        </span>
+      </button>
+    );
+  }
 
   return (
     <div
       role="gridcell"
-      aria-label={`${label}${bookings.length ? `, броней: ${bookings.length}` : ''}`}
-      className={cn('group/cell relative flex min-h-24 flex-col gap-1 p-1.5 sm:min-h-28', inMonth && !isPast ? 'bg-card' : 'bg-muted/70')}
+      aria-label={`${label}${dayBookings.length ? `, броней: ${dayBookings.length}` : ''}`}
+      className={cn(
+        'group/cell relative flex min-h-28 flex-col gap-1 p-1.5',
+        inMonth ? 'bg-card' : 'bg-muted/60',
+        activeCreateDay === day && 'bg-primary/10',
+      )}
     >
-      {/* The whole empty cell creates a booking; chips and the date sit above this layer. */}
       {!isPast && (
         <button
           type="button"
           aria-label={`Новая бронь на ${label}`}
-          onClick={() => onCreate(day)}
-          className="focus-ring absolute inset-0 cursor-copy transition-colors duration-fast hover:bg-primary/5"
+          onClick={(event) => onCreate(day, event.currentTarget)}
+          className="focus-ring absolute inset-0 cursor-cell transition-colors duration-fast hover:bg-primary/5"
         />
       )}
 
@@ -96,40 +152,28 @@ function DayCell({ day, now, inMonth, bookings, onCreate, onOpenDay, onEdit, onD
         type="button"
         onClick={() => onOpenDay(day)}
         aria-label={`Открыть ${label}`}
-        className={cn(
-          'focus-ring relative z-10 flex size-7 items-center justify-center self-start rounded-full text-ui-sm tabular-nums transition-colors duration-fast',
-          isToday ? 'bg-primary font-semibold text-primary-foreground' : 'hover:bg-muted',
-          !inMonth && 'text-muted-foreground',
-        )}
+        className="focus-ring relative z-10 self-start rounded-full transition-colors duration-fast hover:bg-muted"
       >
-        {Number(day.slice(8))}
+        {number}
       </button>
 
-      <ul className="relative z-10 flex flex-col gap-0.5 max-sm:hidden">
+      <ul className="relative z-10 flex flex-col gap-0.5">
         {visible.map((booking) => {
           const past = getBookingPhase(booking, now) === 'past';
           const tone = past ? PAST_TONE : toneFor(booking.id);
           return (
             <li key={booking.id}>
-              <BookingPopover
-                booking={booking}
-                now={now}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                trigger={
-                  <button
-                    type="button"
-                    className={cn(
-                      'focus-ring flex w-full items-center gap-1.5 truncate rounded-md px-1.5 py-0.5 text-left text-xs transition-colors duration-fast',
-                      tone.chip,
-                      past && 'line-through',
-                    )}
-                  >
-                    <span className="tabular-nums opacity-70">{booking.start}</span>
-                    <span className="truncate font-medium">{booking.title ?? 'Без названия'}</span>
-                  </button>
-                }
-              />
+              <button
+                type="button"
+                onClick={(event) => onSelectBooking(booking, event.currentTarget)}
+                className={cn(
+                  'focus-ring flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs transition-colors duration-fast',
+                  tone.chip,
+                )}
+              >
+                <span className="shrink-0 tabular-nums opacity-70">{booking.start}</span>
+                <span className={cn('truncate font-medium', past && 'line-through')}>{booking.title ?? 'Без названия'}</span>
+              </button>
             </li>
           );
         })}
@@ -138,22 +182,13 @@ function DayCell({ day, now, inMonth, bookings, onCreate, onOpenDay, onEdit, onD
             <button
               type="button"
               onClick={() => onOpenDay(day)}
-              className="focus-ring rounded-md px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="focus-ring rounded-md px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
             >
-              + ещё {hidden}
+              Ещё {hidden}
             </button>
           </li>
         )}
       </ul>
-
-      {/* Phones: dots instead of chips; tapping the date opens the day. */}
-      {bookings.length > 0 && (
-        <div aria-hidden className="relative z-10 flex flex-wrap gap-0.5 px-1 sm:hidden">
-          {bookings.slice(0, 4).map((b) => (
-            <span key={b.id} className={cn('size-1.5 rounded-full', b.date < now.date ? PAST_TONE.bar : toneFor(b.id).bar)} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }

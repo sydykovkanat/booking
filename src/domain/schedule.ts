@@ -115,28 +115,3 @@ export function findNearestFreeSlot(desired: TimeRange, ctx: DayContext): TimeRa
   }
   return best?.range ?? null;
 }
-
-export type SlotRow =
-  | { kind: 'start'; value: TimeString }
-  | { kind: 'busy'; booking: Booking };
-
-/**
- * Calendly-style list: every bookable start inside free windows, and one row per
- * upcoming booking instead of a run of disabled 15-minute starts.
- */
-export function buildSlotRows(ctx: DayContext): SlotRow[] {
-  const available = new Set(startOptions(ctx).filter((o) => o.status === 'available').map((o) => o.value));
-  const rows: SlotRow[] = [];
-
-  for (const item of buildAgenda(ctx)) {
-    if (item.kind === 'booking') {
-      if (item.phase !== 'past') rows.push({ kind: 'busy', booking: item.booking });
-      continue;
-    }
-    for (let m = toMinutes(item.start); m < toMinutes(item.end); m += STEP) {
-      const value = fromMinutes(m);
-      if (available.has(value)) rows.push({ kind: 'start', value });
-    }
-  }
-  return rows;
-}
