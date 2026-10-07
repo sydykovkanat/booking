@@ -227,7 +227,7 @@ function FormAlert({ alert, suggestion, onApplySuggestion, onRecreate }: FormAle
             {!suggestion && ' Свободных окон такой длительности на этот день не осталось.'}
           </p>
           {suggestion && (
-            <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => onApplySuggestion(suggestion)}>
+            <Button type="button" variant="secondary" size="sm" className="self-start" onClick={() => onApplySuggestion(suggestion)}>
               <IconSparkles data-icon="inline-start" aria-hidden />
               Подставить {formatRange(suggestion)}
             </Button>
@@ -244,7 +244,7 @@ function FormAlert({ alert, suggestion, onApplySuggestion, onRecreate }: FormAle
         <AlertTitle>Эту бронь уже удалили</AlertTitle>
         <AlertDescription className="flex flex-col gap-3">
           <p>Похоже, её удалил кто-то другой. Можно создать новую бронь с теми же данными.</p>
-          <Button type="button" variant="outline" size="sm" className="self-start" onClick={onRecreate}>
+          <Button type="button" variant="secondary" size="sm" className="self-start" onClick={onRecreate}>
             Создать как новую
           </Button>
         </AlertDescription>
@@ -258,7 +258,7 @@ function FormAlert({ alert, suggestion, onApplySuggestion, onRecreate }: FormAle
       <AlertTitle>Не удалось сохранить</AlertTitle>
       <AlertDescription className="flex flex-col gap-3">
         <p>{alert.message}</p>
-        <Button type="submit" variant="outline" size="sm" className="self-start">
+        <Button type="submit" variant="secondary" size="sm" className="self-start">
           Повторить
         </Button>
       </AlertDescription>

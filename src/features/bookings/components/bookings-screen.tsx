@@ -1,13 +1,11 @@
 'use client';
 
-import { IconHistory, IconPlus, IconRestore } from '@tabler/icons-react';
-import { useCallback, useMemo, useState } from 'react';
+import { IconPlus } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
 
-import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { appConfig } from '@/config/app-config';
 import type { Booking, IsoDate, RoomNow, TimeRange } from '@/domain/booking';
 import { buildAgenda } from '@/domain/schedule';
 import { fromMinutes, toMinutes } from '@/domain/time';
@@ -21,22 +19,18 @@ import { useRoomNow } from '../hooks/use-room-now';
 import { useSelectedDate } from '../hooks/use-selected-date';
 import { formatRange } from '../lib/format';
 import { notify } from '../lib/notify';
-import { bookingElementId } from './agenda';
-import { BookingEditor, type EditorRequest, type EditorState } from './booking-editor';
-import { DayNavigator } from './day-navigator';
+import { AppHeader } from './app-header';
 import { DaySchedule } from './day-schedule';
+import { DayToolbar } from './day-toolbar';
+import { bookingElementId } from './day-timeline';
 import { DeleteBookingDialog } from './delete-booking-dialog';
+import { type EditorRequest, Inspector, type PanelRequest, type PanelState } from './inspector';
 
 const PREFERRED_DURATION_MINUTES = 60;
 
 function valuesForRange(date: IsoDate, range: TimeRange): BookingFormValues {
   const end = Math.min(toMinutes(range.start) + PREFERRED_DURATION_MINUTES, toMinutes(range.end));
   return { date, start: range.start, end: fromMinutes(end), title: '' };
-}
-
-function defaultCreateValues(date: IsoDate, bookings: readonly Booking[], now: RoomNow): BookingFormValues {
-  const firstFree = buildAgenda({ date, bookings, now }).find((i) => i.kind === 'free');
-  return firstFree ? valuesForRange(date, firstFree) : { date, start: '', end: '', title: '' };
 }
 
 function focusBooking(id: string) {
@@ -48,45 +42,70 @@ export function BookingsScreen() {
   const [date, setDate] = useSelectedDate(now?.date ?? null);
 
   if (!now || !date) return <ScreenSkeleton />;
-  return <BookingsDay now={now} date={date} onDateChange={setDate} />;
+  return <BookingsApp now={now} date={date} onDateChange={setDate} />;
 }
 
-interface BookingsDayProps {
+interface BookingsAppProps {
   now: RoomNow;
   date: IsoDate;
   onDateChange: (date: IsoDate) => void;
 }
 
-function BookingsDay({ now, date, onDateChange }: BookingsDayProps) {
+function BookingsApp({ now, date, onDateChange }: BookingsAppProps) {
   const queryClient = useQueryClient();
-  const { data: bookings = [] } = useBookings(date);
-  const [editor, setEditor] = useState<EditorState | null>(null);
+  const day = useBookings(date);
+  const bookings = useMemo(() => day.data ?? [], [day.data]);
+  const [panel, setPanel] = useState<PanelState | null>(null);
   const [deleting, setDeleting] = useState<Booking | null>(null);
   const [preview, setPreview] = useState<BookingPreview | null>(null);
 
   const readOnly = date < now.date;
-  const hasFreeTime = useMemo(
-    () => buildAgenda({ date, bookings, now }).some((i) => i.kind === 'free'),
+  const freeWindows = useMemo(
+    () => buildAgenda({ date, bookings, now }).filter((i) => i.kind === 'free'),
     [date, bookings, now],
   );
-  const canCreate = !readOnly && hasFreeTime;
+  const canCreate = !readOnly && freeWindows.length > 0;
+  const cannotCreateReason = readOnly
+    ? 'Прошедшие даты доступны только для просмотра.'
+    : 'На этот день свободного времени не осталось — выберите другую дату.';
+
+  // Details always show the freshest copy; a booking deleted meanwhile closes the panel.
+  const shownPanel = useMemo<PanelState | null>(() => {
+    if (panel?.kind !== 'details' || panel.booking.date !== date || !day.data) return panel;
+    const fresh = day.data.find((b) => b.id === panel.booking.id);
+    return fresh ? { ...panel, booking: fresh } : null;
+  }, [panel, date, day.data]);
+
+  const selectedBookingId =
+    shownPanel?.kind === 'details'
+      ? shownPanel.booking.id
+      : shownPanel?.kind === 'form' && shownPanel.editor.mode === 'edit'
+        ? shownPanel.editor.booking.id
+        : null;
   const visiblePreview = preview?.date === date ? preview : undefined;
   const highlightedIds = useMemo(() => new Set(visiblePreview?.conflictIds ?? []), [visiblePreview]);
 
-  const openEditor = (request: EditorRequest) => setEditor({ ...request, key: Date.now() });
+  const open = (request: PanelRequest) => setPanel({ ...request, key: Date.now() });
+  const openForm = (editor: EditorRequest) => open({ kind: 'form', editor });
+  const closePanel = useCallback(() => setPanel(null), []);
 
-  const closeEditor = useCallback(() => setEditor(null), []);
+  const startCreate = () =>
+    openForm({
+      mode: 'create',
+      initialValues: freeWindows[0] ? valuesForRange(date, freeWindows[0]) : { date, start: '', end: '', title: '' },
+    });
 
   const handleSaved = (saved: Booking) => {
-    notify('success', editor?.mode === 'edit' ? `Бронь обновлена: ${formatRange(saved)}` : `Забронировано: ${formatRange(saved)}`);
-    setEditor(null);
+    const wasEdit = panel?.kind === 'form' && panel.editor.mode === 'edit';
+    notify('success', wasEdit ? `Бронь обновлена: ${formatRange(saved)}` : `Забронировано: ${formatRange(saved)}`);
     if (saved.date !== date) onDateChange(saved.date);
+    open({ kind: 'details', booking: saved });
     focusBooking(saved.id);
   };
 
   const handleDeleted = (booking: Booking) => {
     setDeleting(null);
-    if (editor?.mode === 'edit' && editor.booking.id === booking.id) setEditor(null);
+    if (selectedBookingId === booking.id) setPanel(null);
   };
 
   const resetDemo = async () => {
@@ -95,66 +114,61 @@ function BookingsDay({ now, date, onDateChange }: BookingsDayProps) {
       return;
     }
     await queryClient.invalidateQueries({ queryKey: bookingKeys.all });
-    setEditor(null);
+    setPanel(null);
     notify('success', 'Данные сброшены к демо-набору');
   };
 
-  const startCreate = () =>
-    openEditor({ mode: 'create', initialValues: defaultCreateValues(date, bookings, now) });
-
   return (
-    <div className="site-container max-w-6xl pt-6 pb-28 sm:pt-10 lg:pb-12">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4 sm:mb-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Переговорка</h1>
-          <p className="mt-1 text-ui text-muted-foreground">Бронирование на рабочий день, 09:00–18:00</p>
-        </div>
-        {appConfig.demoTools && (
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={resetDemo}>
-            <IconRestore data-icon="inline-start" aria-hidden /> Сбросить демо-данные
-          </Button>
-        )}
-      </header>
+    <div className="min-h-dvh bg-muted">
+      <div className="site-container flex max-w-6xl flex-col gap-4 pt-[max(1rem,env(safe-area-inset-top))] pb-28 md:gap-6 md:pt-6 lg:pb-10">
+        <AppHeader onResetDemo={resetDemo} />
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-8">
-        <main className="flex min-w-0 flex-col gap-6">
-          <DayNavigator date={date} now={now} onChange={onDateChange} />
-          {readOnly && (
-            <Alert>
-              <IconHistory aria-hidden />
-              <AlertTitle>Прошедшая дата — только просмотр</AlertTitle>
-            </Alert>
-          )}
-          <DaySchedule
-            date={date}
+        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-6">
+          <main className="flex min-w-0 flex-col gap-5 rounded-2xl bg-card p-4 shadow-card sm:p-6">
+            <DayToolbar
+              date={date}
+              now={now}
+              bookingsCount={day.data ? bookings.length : null}
+              refreshing={day.isFetching && !day.isPending}
+              onChange={onDateChange}
+            />
+            <DaySchedule
+              date={date}
+              now={now}
+              readOnly={readOnly}
+              selectedBookingId={selectedBookingId}
+              selection={visiblePreview}
+              highlightedIds={highlightedIds}
+              onBook={(range) => openForm({ mode: 'create', initialValues: valuesForRange(date, range) })}
+              onSelectBooking={(booking) => open({ kind: 'details', booking })}
+            />
+          </main>
+
+          <Inspector
+            panel={shownPanel}
             now={now}
-            readOnly={readOnly}
-            selection={visiblePreview}
-            highlightedIds={highlightedIds}
-            onBook={(range) => openEditor({ mode: 'create', initialValues: valuesForRange(date, range) })}
-            onEdit={(booking) => openEditor({ mode: 'edit', booking })}
+            canCreate={canCreate}
+            cannotCreateReason={cannotCreateReason}
+            onCreate={startCreate}
+            onEdit={(booking) => openForm({ mode: 'edit', booking })}
             onDelete={setDeleting}
+            onClose={closePanel}
+            onSuccess={handleSaved}
+            onSwitchToCreate={(values) => openForm({ mode: 'create', initialValues: values })}
+            onPreviewChange={setPreview}
           />
-        </main>
-
-        <BookingEditor
-          editor={editor}
-          canCreate={canCreate}
-          cannotCreateReason={readOnly ? 'Прошедшие даты доступны только для просмотра.' : 'На этот день свободного времени не осталось — выберите другую дату.'}
-          onCreate={startCreate}
-          onSuccess={handleSaved}
-          onCancel={closeEditor}
-          onSwitchToCreate={(values) => openEditor({ mode: 'create', initialValues: values })}
-          onPreviewChange={setPreview}
-        />
+        </div>
       </div>
 
-      {canCreate && !editor && (
-        <div className="fixed inset-x-0 bottom-0 z-sticky bg-linear-to-t from-background via-background/90 to-transparent px-4 pt-6 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden">
-          <Button size="lg" className="w-full shadow-floating" onClick={startCreate}>
-            <IconPlus data-icon="inline-start" aria-hidden /> Новая бронь
-          </Button>
-        </div>
+      {canCreate && !panel && (
+        <Button
+          size="icon-lg"
+          className="fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-sticky size-14 rounded-2xl shadow-floating lg:hidden"
+          aria-label="Новая бронь"
+          onClick={startCreate}
+        >
+          <IconPlus className="size-6" aria-hidden />
+        </Button>
       )}
 
       <DeleteBookingDialog booking={deleting} onClose={() => setDeleting(null)} onDeleted={handleDeleted} />
@@ -164,14 +178,13 @@ function BookingsDay({ now, date, onDateChange }: BookingsDayProps) {
 
 function ScreenSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Загрузка" className="site-container max-w-6xl pt-6 sm:pt-10">
-      <Skeleton className="h-8 w-48" />
-      <Skeleton className="mt-3 h-4 w-72" />
-      <Skeleton className="mt-8 h-10 w-full max-w-md" />
-      <div className="mt-6 flex flex-col gap-2">
-        {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-16 w-full rounded-xl" />
-        ))}
+    <div aria-busy="true" aria-label="Загрузка" className="min-h-dvh bg-muted">
+      <div className="site-container flex max-w-6xl flex-col gap-4 pt-4 md:gap-6 md:pt-6">
+        <Skeleton className="h-10 w-56" />
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:gap-6">
+          <Skeleton className="h-[720px] rounded-2xl" />
+          <Skeleton className="hidden h-80 rounded-2xl lg:block" />
+        </div>
       </div>
     </div>
   );

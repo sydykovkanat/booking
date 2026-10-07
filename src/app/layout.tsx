@@ -16,20 +16,17 @@ export const metadata: Metadata = {
   description: 'Бронирование переговорной комнаты на рабочий день',
 };
 
-// Matches --background in globals.css.
+// Matches the page tint (bg-muted) behind the surfaces.
 export const viewport: Viewport = {
   viewportFit: 'cover',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
-  ],
+  themeColor: '#f5f5f5',
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="ru" suppressHydrationWarning className={cn('antialiased', fontSans.variable, fontMono.variable)}>
       <body>
-        <ThemeProvider>
+        <ThemeProvider forcedTheme="light" enableSystem={false}>
           <Providers>{children}</Providers>
           <PageScrollbar />
         </ThemeProvider>
