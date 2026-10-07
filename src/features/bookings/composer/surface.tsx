@@ -1,12 +1,14 @@
 'use client';
 
+import { IconX } from '@tabler/icons-react';
 import type { ReactNode, RefObject } from 'react';
 
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
+import { Button } from '@/components/ui/button';
+import { Drawer, DrawerClose, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 import { Popover, PopoverContent } from '@/components/ui/popover';
 
-export type Presentation = 'popover' | 'dialog' | 'drawer';
+/** `popover`: next to what was clicked. `side`: right-hand drawer (desktop). `drawer`: bottom sheet (phones). */
+export type Presentation = 'popover' | 'side' | 'drawer';
 
 interface SurfaceProps {
   open: boolean;
@@ -20,7 +22,7 @@ interface SurfaceProps {
 
 /**
  * One place that decides *where* a panel appears: next to what was clicked on desktop,
- * a dialog when there is nothing to point at, a bottom drawer on phones.
+ * a right-hand drawer when there is nothing to point at, a bottom drawer on phones.
  */
 export function Surface({ open, presentation, anchor, label, onClose, children }: SurfaceProps) {
   const onOpenChange = (next: boolean) => !next && onClose();
@@ -36,13 +38,19 @@ export function Surface({ open, presentation, anchor, label, onClose, children }
     );
   }
 
-  if (presentation === 'dialog') {
+  if (presentation === 'side') {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent aria-label={label} className="sm:max-w-md">
-          {children}
-        </DialogContent>
-      </Dialog>
+      <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">
+        <DrawerContent aria-label={label} className="data-[swipe-axis=x]:sm:[--drawer-content-width:28rem]">
+          <div className="flex items-center justify-between gap-3 px-6 pt-6 pb-4">
+            <DrawerTitle className="text-xl">{label}</DrawerTitle>
+            <DrawerClose render={<Button variant="ghost" size="icon-sm" aria-label="Закрыть" />}>
+              <IconX aria-hidden />
+            </DrawerClose>
+          </div>
+          <div className="px-6 pb-6">{children}</div>
+        </DrawerContent>
+      </Drawer>
     );
   }
 

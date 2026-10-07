@@ -23,7 +23,7 @@ export function CalendarPanel({ panels, now, compact, onDelete }: CalendarPanelP
   return (
     <Surface
       open={panel !== null}
-      presentation={panel?.presentation ?? 'dialog'}
+      presentation={panel?.presentation ?? 'side'}
       anchor={panels.anchor}
       label={label}
       onClose={panels.close}

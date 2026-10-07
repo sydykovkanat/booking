@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { type Presentation, Surface } from './surface';
 
 describe('Surface', () => {
-  it.each<Presentation>(['dialog', 'drawer', 'popover'])('renders as %s with an accessible name', async (presentation) => {
+  it.each<Presentation>(['side', 'drawer', 'popover'])('renders as %s with an accessible name', async (presentation) => {
     const anchor = document.createElement('div');
     document.body.append(anchor);
     const onClose = vi.fn();
@@ -25,7 +25,7 @@ describe('Surface', () => {
 
   it('renders nothing when closed', () => {
     render(
-      <Surface open={false} presentation="dialog" label="Новая бронь" onClose={vi.fn()}>
+      <Surface open={false} presentation="side" label="Новая бронь" onClose={vi.fn()}>
         <p>скрыто</p>
       </Surface>,
     );

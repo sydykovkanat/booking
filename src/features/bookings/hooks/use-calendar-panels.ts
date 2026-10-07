@@ -102,7 +102,7 @@ export function useCalendarPanels({ now, date, range, bookings, compact, navigat
     setDraftCell,
     close,
 
-    createFromToolbar: () => composeOnDay(date < now.date ? now.date : date, compact ? 'drawer' : 'dialog'),
+    createFromToolbar: () => composeOnDay(date < now.date ? now.date : date, compact ? 'drawer' : 'side'),
     createOnMonthDay: (day: IsoDate) => composeOnDay(day, floating, 'draft-cell'),
     selectRange: (day: IsoDate, slot: TimeRange, via: SelectVia) =>
       compose(day, slot, via === 'touch' || compact ? 'drawer' : 'popover', draftRef),
