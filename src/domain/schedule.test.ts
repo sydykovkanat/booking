@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Booking } from './booking';
-import { buildAgenda, endOptions, findNearestFreeSlot, startOptions } from './schedule';
+import { buildAgenda, endForStart, endOptions, findNearestFreeSlot, startOptions } from './schedule';
 
 const DATE = '2026-10-08';
 const TOMORROW_NOW = { date: '2026-10-07', minutes: 12 * 60 };
@@ -162,5 +162,21 @@ describe('findNearestFreeSlot', () => {
       { ...ctx([booking('a', '10:00', '11:00'), booking('b', '11:00', '12:00')]), excludeId: 'a' },
     );
     expect(slot).toEqual({ start: '10:00', end: '11:00' });
+  });
+});
+
+describe('endForStart', () => {
+  const ctx = { date: DATE, bookings: [booking('a', '14:00', '15:00')], now: TOMORROW_NOW };
+
+  it('keeps the preferred duration when it fits', () => {
+    expect(endForStart('11:00', 90, ctx)).toBe('12:30');
+  });
+
+  it('shortens to the next booking', () => {
+    expect(endForStart('13:15', 90, ctx)).toBe('14:00');
+  });
+
+  it('returns empty when nothing fits', () => {
+    expect(endForStart('13:45', 60, ctx)).toBe('');
   });
 });

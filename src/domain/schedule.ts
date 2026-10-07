@@ -115,3 +115,14 @@ export function findNearestFreeSlot(desired: TimeRange, ctx: DayContext): TimeRa
   }
   return best?.range ?? null;
 }
+
+/**
+ * End for a new start: keep `preferredDuration` if that end is free, otherwise the
+ * longest available end up to it, otherwise the first available. '' when nothing fits.
+ */
+export function endForStart(start: TimeString, preferredDuration: number, ctx: DayContext): TimeString {
+  const available = endOptions(start, ctx).filter((o) => o.status === 'available');
+  const wanted = toMinutes(start) + preferredDuration;
+  const fitting = available.filter((o) => toMinutes(o.value) <= wanted);
+  return (fitting.at(-1) ?? available[0])?.value ?? '';
+}

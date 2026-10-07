@@ -59,7 +59,11 @@ afterEach(() => {
 const user = () => userEvent.setup();
 const submitButton = () => screen.getByRole('button', { name: 'Забронировать' });
 const ready = () => waitFor(() => expect(submitButton()).toBeEnabled());
-const shownRange = () => screen.getByText(/^\d\d:\d\d–\d\d:\d\d/).textContent;
+const row = (label: 'Начало' | 'Конец') => screen.getByRole('combobox', { name: label });
+const pick = async (label: 'Начало' | 'Конец', value: RegExp) => {
+  await user().click(row(label));
+  await user().click(await screen.findByRole('option', { name: value }));
+};
 
 describe('QuickBookingForm', () => {
   it('books with a trimmed title in one step', async () => {
@@ -74,23 +78,27 @@ describe('QuickBookingForm', () => {
     expect(api.create).toHaveBeenCalledWith({ date: DATE, start: '11:00', end: '12:00', title: 'Ревью' });
   });
 
-  it('moves the start by 15 minutes and jumps over bookings', async () => {
-    renderForm(createFakeApi(), { initialValues: { date: DATE, start: '09:00', end: '10:00', title: '' } });
+  it('keeps the duration when the start changes', async () => {
+    renderForm(createFakeApi(), { initialValues: { date: DATE, start: '11:00', end: '12:30', title: '' } });
     await ready();
 
-    expect(screen.getByRole('button', { name: 'Начать на 15 минут раньше' })).toBeDisabled();
-    await user().click(screen.getByRole('button', { name: 'Начать на 15 минут позже' }));
-    expect(shownRange()).toContain('11:00–12:00');
+    await pick('Начало', /^13:00$/);
+    expect(row('Начало')).toHaveTextContent('13:00');
+    expect(row('Конец')).toHaveTextContent('14:30');
   });
 
-  it('sets the duration with chips and disables those that would overlap', async () => {
+  it('only offers starts and ends that do not overlap another booking', async () => {
     renderForm(createFakeApi(), { initialValues: { date: DATE, start: '09:00', end: '09:30', title: '' } });
     await ready();
 
-    expect(screen.getByRole('radio', { name: '1 ч' })).toBeEnabled();
-    expect(screen.getByRole('radio', { name: '1 ч 15 мин' })).toBeDisabled();
-    await user().click(screen.getByRole('radio', { name: '1 ч' }));
-    expect(shownRange()).toContain('09:00–10:00');
+    await user().click(row('Конец'));
+    expect(await screen.findByRole('option', { name: /^10:00/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /^10:15/ })).not.toBeInTheDocument();
+    await user().keyboard('{Escape}');
+
+    await user().click(row('Начало'));
+    expect(await screen.findByRole('option', { name: /^11:00$/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /^10:00$/ })).not.toBeInTheDocument();
   });
 
   it('keeps the title and suggests a free slot on 409', async () => {
@@ -115,7 +123,8 @@ describe('QuickBookingForm', () => {
     expect(onSaved).not.toHaveBeenCalled();
 
     await user().click(await screen.findByRole('button', { name: /Взять 12:00–13:00/ }));
-    expect(shownRange()).toContain('12:00–13:00');
+    expect(row('Начало')).toHaveTextContent('12:00');
+    expect(row('Конец')).toHaveTextContent('13:00');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 

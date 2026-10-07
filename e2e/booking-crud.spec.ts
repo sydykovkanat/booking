@@ -23,9 +23,10 @@ test('create, edit and delete a booking', async ({ page }) => {
   // Edit: 1 h 30 min. Durations over 2 h are never offered.
   await block.click();
   await detailsPanel(page).getByRole('button', { name: 'Изменить' }).click();
-  await expect(bookingDialog(page).getByRole('radio', { name: '2 ч', exact: true })).toBeVisible();
-  await expect(bookingDialog(page).getByRole('radio', { name: '2 ч 15 мин' })).toHaveCount(0);
-  await bookingDialog(page).getByRole('radio', { name: '1 ч 30 мин' }).click();
+  await bookingDialog(page).getByRole('combobox', { name: 'Конец' }).click();
+  await expect(page.getByRole('option', { name: '11:00 · 2 ч' })).toBeVisible();
+  await expect(page.getByRole('option', { name: /2 ч 15 мин/ })).toHaveCount(0);
+  await page.getByRole('option', { name: '10:30 · 1 ч 30 мин' }).click();
   await submit(page, 'Сохранить');
   const longer = page.getByRole('button', { name: '09:00–10:30, E2E планирование' });
   await expect(longer).toBeVisible();
@@ -71,7 +72,7 @@ test('drag in the week grid selects a range and opens the quick form next to it'
   await page.mouse.up();
 
   await expect(bookingDialog(page)).toBeVisible();
-  await expect(bookingDialog(page).getByText('11:00–12:30')).toBeVisible();
-  await expect(bookingDialog(page).getByRole('radio', { name: '1 ч 30 мин' })).toHaveAttribute('aria-checked', 'true');
+  await expect(bookingDialog(page).getByRole('combobox', { name: 'Начало' })).toHaveText(/11:00/);
+  await expect(bookingDialog(page).getByRole('combobox', { name: 'Конец' })).toHaveText(/12:30 · 1 ч 30 мин/);
   await expect(bookingDialog(page).getByLabel('Название')).toBeFocused();
 });

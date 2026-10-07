@@ -10,7 +10,8 @@ import { Spinner } from '@/components/ui/spinner';
 import { appConfig } from '@/config/app-config';
 import type { Booking, TimeRange } from '@/domain/booking';
 import { BOOKING_RULES } from '@/domain/config';
-import { isValidTime } from '@/domain/time';
+import { endForStart } from '@/domain/schedule';
+import { isValidTime, toMinutes } from '@/domain/time';
 import { demoApi } from '@/lib/api/demo-api';
 import { cn } from '@/lib/utils';
 
@@ -20,11 +21,11 @@ import {
   type FormAlertState,
   useBookingFormController,
 } from '../form/use-booking-form-controller';
-import { formatRange } from '../lib/format';
+import { durationOf } from '../form/duration';
+import { formatDuration, formatRange } from '../lib/format';
 import { describeConflicts } from '../lib/messages';
 import { notify } from '../lib/notify';
-import { DateField } from './date-field';
-import { TimeRangeControl } from './time-range-control';
+import { DateRow, RowGroup, type RowOption, SelectRow } from './form-rows';
 
 export interface QuickBookingFormProps {
   mode: 'create' | 'edit';
@@ -71,51 +72,87 @@ export function QuickBookingForm({
     else notify('error', 'Не удалось занять слот', 'Проверьте, что время свободно и не в прошлом.');
   };
 
+  const timeId = 'quick-time-error';
+  const duration = durationOf({ start, end });
+  const startChoices: RowOption[] = ctl.startOptions
+    .filter((o) => o.status === 'available' || o.value === start)
+    .map((o) => ({ value: o.value, label: o.value }));
+  const endChoices: RowOption[] = ctl.endOptions
+    .filter((o) => o.status === 'available' || o.value === end)
+    .map((o) => ({
+      value: o.value,
+      label: (
+        <>
+          {o.value}
+          <span className="font-normal text-muted-foreground"> · {formatDuration(toMinutes(o.value) - toMinutes(start))}</span>
+        </>
+      ),
+    }));
+
+  const changeStart = (next: string) => {
+    if (!ctl.dayContext) return;
+    ctl.setRange({ start: next, end: endForStart(next, duration ?? 60, ctl.dayContext) });
+  };
+
   return (
-    <form onSubmit={ctl.submit} noValidate aria-busy={ctl.isSubmitting} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
+    <form onSubmit={ctl.submit} noValidate aria-busy={ctl.isSubmitting} className="flex flex-col gap-5">
+      <div className="group/title flex flex-col">
         <Input
           aria-label="Название"
           placeholder="Название встречи"
           autoComplete="off"
           autoFocus={autoFocusTitle}
-          size="lg"
           aria-invalid={Boolean(titleError) || undefined}
           aria-describedby={titleError ? 'quick-title-error' : undefined}
-          className="text-lg font-semibold placeholder:font-normal"
+          className="h-12 rounded-none border-0 bg-transparent px-0 text-xl font-semibold shadow-none placeholder:font-normal placeholder:text-muted-foreground/70 focus-visible:ring-0 aria-invalid:ring-0"
           {...ctl.form.register('title', { onChange: ctl.clearTitleError })}
         />
-        <div className="flex items-center justify-between gap-3">
-          <DateField value={date} min={ctl.now?.date} disabled={ctl.lockedStart} onChange={ctl.setDate} />
+        <span
+          aria-hidden
+          className={cn(
+            'h-px bg-border transition-[height,background-color] duration-fast group-focus-within/title:h-0.5 group-focus-within/title:bg-primary',
+            titleError && 'h-0.5 bg-destructive',
+          )}
+        />
+        <div className="mt-1.5 flex justify-between gap-3 text-ui-sm">
+          <span id="quick-title-error" className="text-destructive">
+            {titleError}
+          </span>
           {title.length > BOOKING_RULES.titleMaxLength - 20 && (
-            <span className={cn('text-ui-sm tabular-nums', titleError ? 'text-destructive' : 'text-muted-foreground')}>
+            <span className={cn('tabular-nums', titleError ? 'text-destructive' : 'text-muted-foreground')}>
               {title.length}/{BOOKING_RULES.titleMaxLength}
             </span>
           )}
         </div>
-        {titleError && (
-          <p id="quick-title-error" className="text-ui-sm text-destructive">
-            {titleError}
-          </p>
-        )}
       </div>
 
       <div className="flex flex-col gap-2">
-        <TimeRangeControl
-          start={start}
-          end={end}
-          ends={ctl.endOptions}
-          dayContext={ctl.dayContext}
-          lockedStart={ctl.lockedStart}
-          invalid={Boolean(timeError)}
-          describedBy={timeError ? 'quick-time-error' : undefined}
-          onChange={ctl.setRange}
-        />
+        <RowGroup invalid={Boolean(timeError)}>
+          <DateRow value={date} min={ctl.now?.date} disabled={ctl.lockedStart} onChange={ctl.setDate} />
+          <SelectRow
+            id="quick-start"
+            label="Начало"
+            value={start}
+            options={startChoices}
+            disabled={ctl.lockedStart || ctl.dayLoading}
+            describedBy={timeError ? timeId : undefined}
+            onChange={changeStart}
+          />
+          <SelectRow
+            id="quick-end"
+            label="Конец"
+            value={end}
+            options={endChoices}
+            disabled={ctl.dayLoading || !isValidTime(start)}
+            describedBy={timeError ? timeId : undefined}
+            onChange={(next) => ctl.setRange({ start, end: next })}
+          />
+        </RowGroup>
         {ctl.lockedStart && (
-          <p className="text-ui-sm text-muted-foreground">Встреча уже идёт — можно изменить окончание и название.</p>
+          <p className="px-1 text-ui-sm text-muted-foreground">Встреча уже идёт — можно изменить конец и название.</p>
         )}
         {timeError && (
-          <p id="quick-time-error" className="text-ui-sm text-destructive">
+          <p id={timeId} className="px-1 text-ui-sm text-destructive">
             {timeError}
           </p>
         )}
@@ -128,13 +165,13 @@ export function QuickBookingForm({
         onRecreate={() => onRecreate(ctl.getValues())}
       />
 
-      <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={ctl.isSubmitting}>
           Отмена
         </Button>
         <Button
           type="submit"
-          className="max-sm:h-12 sm:min-w-36"
+          className="font-semibold max-sm:h-12 sm:min-w-36"
           disabled={ctl.isSubmitting || !ctl.now || ctl.dayLoading || !isValidTime(start) || !isValidTime(end)}
         >
           {ctl.isSubmitting && <Spinner data-icon="inline-start" label="Сохраняем" />}

@@ -281,7 +281,10 @@ function DraftBlock({
       aria-hidden
       className={cn(
         'pointer-events-none absolute inset-x-1 z-30 flex flex-col overflow-hidden rounded-lg px-3 py-1.5 shadow-floating transition-[top,height] duration-fast ease-out',
-        conflict ? 'bg-destructive text-white' : 'bg-primary text-primary-foreground',
+        // With a red brand accent, a conflict must not look like a normal (solid red) draft.
+        conflict
+          ? 'bg-destructive/10 text-destructive shadow-none ring-2 ring-destructive ring-inset [background-image:repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_oklch,var(--destructive)_14%,transparent)_6px_9px)]'
+          : 'bg-primary text-primary-foreground',
       )}
       style={box(range)}
     >

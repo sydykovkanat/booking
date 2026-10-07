@@ -7,7 +7,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import type { Booking, TimeRange } from '@/domain/booking';
 import { findConflicts } from '@/domain/overlap';
 import { type BookingField, getBookingPhase, normalizeInput, type ValidationContext } from '@/domain/rules';
-import { type DayContext, endOptions, findNearestFreeSlot } from '@/domain/schedule';
+import { type DayContext, endOptions, findNearestFreeSlot, startOptions } from '@/domain/schedule';
 import { isValidIsoDate, isValidTime, toMinutes } from '@/domain/time';
 import { ApiError } from '@/lib/api/api-error';
 
@@ -195,6 +195,7 @@ export function useBookingFormController({
     preview,
     dayLoading: formDate !== null && day.isPending,
     dayContext: dayCtx,
+    startOptions: dayCtx ? startOptions(dayCtx) : [],
     endOptions: dayCtx && isValidTime(start) ? endOptions(start, dayCtx) : [],
     suggestion: alert?.kind === 'conflict' && dayCtx && validRange ? findNearestFreeSlot({ start, end }, dayCtx) : null,
     fieldError: (field: BookingField) => formState.errors[field]?.message ?? serverErrors[field],
