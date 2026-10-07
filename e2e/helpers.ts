@@ -16,3 +16,11 @@ export async function openDay(page: Page, date: string) {
 
 export const submitButton = (page: Page, name: 'Забронировать' | 'Сохранить') =>
   page.getByRole('button', { name, exact: true });
+
+/** Picks a time in the kit's Select (a button + listbox, not a native <select>). */
+export async function pickTime(page: Page, label: 'Начало' | 'Окончание', value: string) {
+  await page.getByLabel(label).click();
+  await page.getByRole('option', { name: new RegExp(`^${value}`) }).click();
+}
+
+export const timeField = (page: Page, label: 'Начало' | 'Окончание') => page.getByLabel(label);

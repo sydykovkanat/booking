@@ -1,6 +1,6 @@
 'use client';
 
-import { PencilIcon, PlusIcon, Trash2Icon } from 'lucide-react';
+import { IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
 
 import { Button } from '@/components/ui/button';
 import type { Booking, TimeRange } from '@/domain/booking';
@@ -60,9 +60,9 @@ function BookingRow({ item: { booking, phase }, highlighted, onEdit, onDelete }:
       id={bookingElementId(booking.id)}
       tabIndex={-1}
       className={cn(
-        'group flex items-center gap-3 rounded-2xl bg-card p-3 pl-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)] outline-none transition-[box-shadow,opacity] focus-visible:ring-3 focus-visible:ring-ring/40 sm:gap-4',
-        phase === 'past' && 'bg-card/60 shadow-none',
-        highlighted && 'ring-3 ring-destructive/40',
+        'group flex items-center gap-3 rounded-xl bg-card p-3 pl-4 shadow-card outline-none transition-[box-shadow,opacity] duration-base focus-visible:ring-3 focus-visible:ring-ring/80 sm:gap-4',
+        phase === 'past' && 'bg-muted/60 shadow-none',
+        highlighted && 'ring-3 ring-destructive/50',
       )}
     >
       <div
@@ -70,32 +70,32 @@ function BookingRow({ item: { booking, phase }, highlighted, onEdit, onDelete }:
         className={cn('h-10 w-1 shrink-0 rounded-full bg-primary', phase === 'past' && 'bg-muted-foreground/30')}
       />
       <div className={cn('min-w-0 flex-1', phase === 'past' && 'opacity-60')}>
-        <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+        <p className="flex flex-wrap items-baseline gap-x-2 text-ui-sm">
           <span className="font-semibold tabular-nums">{range}</span>
           <span className="text-muted-foreground">{durationOf(booking)}</span>
           {phase === 'ongoing' && (
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-success">
+            <span className="inline-flex items-center gap-1.5 font-medium text-success">
               <span className="size-1.5 animate-pulse rounded-full bg-success" aria-hidden />
               Идёт сейчас
             </span>
           )}
-          {phase === 'past' && <span className="text-xs text-muted-foreground">Завершена</span>}
+          {phase === 'past' && <span className="text-muted-foreground">Завершена</span>}
         </p>
-        <p className={cn('mt-0.5 truncate', !booking.title && 'text-muted-foreground italic')}>{title}</p>
+        <p className={cn('mt-1 truncate text-ui font-medium', !booking.title && 'font-normal text-muted-foreground')}>{title}</p>
       </div>
       {editable && (
-        <div className="flex shrink-0 gap-1 sm:opacity-60 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-          <Button variant="ghost" size="icon" aria-label={`Изменить бронь ${range}`} onClick={() => onEdit(booking)}>
-            <PencilIcon />
+        <div className="flex shrink-0 gap-0.5">
+          <Button variant="ghost" size="icon" className="text-muted-foreground" aria-label={`Изменить бронь ${range}`} onClick={() => onEdit(booking)}>
+            <IconPencil aria-hidden />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="hover:bg-destructive/10 hover:text-destructive"
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
             aria-label={`Удалить бронь ${range}`}
             onClick={() => onDelete(booking)}
           >
-            <Trash2Icon />
+            <IconTrash aria-hidden />
           </Button>
         </div>
       )}
@@ -111,21 +111,22 @@ interface FreeRowProps {
 
 function FreeRow({ range, readOnly, onBook }: FreeRowProps) {
   return (
-    <li className="flex items-center gap-3 rounded-2xl bg-success/6 p-3 pl-4 sm:gap-4">
-      <div aria-hidden className="h-10 w-1 shrink-0 rounded-full bg-success/40" />
-      <p className="min-w-0 flex-1 text-sm">
+    <li className="flex items-center gap-3 rounded-xl bg-secondary/60 p-3 pl-4 sm:gap-4">
+      <div aria-hidden className="h-10 w-1 shrink-0 rounded-full bg-success/50" />
+      <p className="min-w-0 flex-1 text-ui-sm">
         <span className="font-medium text-success">Свободно</span>{' '}
         <span className="tabular-nums">{formatRange(range)}</span>
         <span className="text-muted-foreground"> · {durationOf(range)}</span>
       </p>
       {!readOnly && (
         <Button
-          variant="ghost"
-          className="shrink-0 text-success hover:bg-success/10 hover:text-success"
+          variant="outline"
+          size="sm"
+          className="shrink-0"
           onClick={() => onBook(range)}
           aria-label={`Забронировать ${formatRange(range)}`}
         >
-          <PlusIcon />
+          <IconPlus data-icon="inline-start" aria-hidden />
           <span className="max-sm:sr-only">Забронировать</span>
         </Button>
       )}

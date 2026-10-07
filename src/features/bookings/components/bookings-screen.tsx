@@ -1,10 +1,10 @@
 'use client';
 
-import { PlusIcon, RotateCcwIcon } from 'lucide-react';
+import { IconHistory, IconPlus, IconRestore } from '@tabler/icons-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
 
+import { Alert, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { appConfig } from '@/config/app-config';
@@ -20,6 +20,7 @@ import type { BookingFormValues } from '../form/booking-form-schema';
 import { useRoomNow } from '../hooks/use-room-now';
 import { useSelectedDate } from '../hooks/use-selected-date';
 import { formatRange } from '../lib/format';
+import { notify } from '../lib/notify';
 import { bookingElementId } from './agenda';
 import { BookingEditor, type EditorRequest, type EditorState } from './booking-editor';
 import { DayNavigator } from './day-navigator';
@@ -77,9 +78,7 @@ function BookingsDay({ now, date, onDateChange }: BookingsDayProps) {
   const closeEditor = useCallback(() => setEditor(null), []);
 
   const handleSaved = (saved: Booking) => {
-    toast.success(
-      editor?.mode === 'edit' ? `Бронь обновлена: ${formatRange(saved)}` : `Забронировано: ${formatRange(saved)}`,
-    );
+    notify('success', editor?.mode === 'edit' ? `Бронь обновлена: ${formatRange(saved)}` : `Забронировано: ${formatRange(saved)}`);
     setEditor(null);
     if (saved.date !== date) onDateChange(saved.date);
     focusBooking(saved.id);
@@ -92,27 +91,27 @@ function BookingsDay({ now, date, onDateChange }: BookingsDayProps) {
 
   const resetDemo = async () => {
     if (!(await demoApi.reset())) {
-      toast.error('Не удалось сбросить данные');
+      notify('error', 'Не удалось сбросить данные');
       return;
     }
     await queryClient.invalidateQueries({ queryKey: bookingKeys.all });
     setEditor(null);
-    toast.success('Данные сброшены к демо-набору');
+    notify('success', 'Данные сброшены к демо-набору');
   };
 
   const startCreate = () =>
     openEditor({ mode: 'create', initialValues: defaultCreateValues(date, bookings, now) });
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pt-6 pb-28 sm:px-6 sm:pt-10 lg:pb-12">
+    <div className="site-container max-w-6xl pt-6 pb-28 sm:pt-10 lg:pb-12">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4 sm:mb-8">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Переговорка</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Бронирование на рабочий день, 09:00–18:00</p>
+          <p className="mt-1 text-ui text-muted-foreground">Бронирование на рабочий день, 09:00–18:00</p>
         </div>
         {appConfig.demoTools && (
           <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={resetDemo}>
-            <RotateCcwIcon /> Сбросить демо-данные
+            <IconRestore data-icon="inline-start" aria-hidden /> Сбросить демо-данные
           </Button>
         )}
       </header>
@@ -121,9 +120,10 @@ function BookingsDay({ now, date, onDateChange }: BookingsDayProps) {
         <main className="flex min-w-0 flex-col gap-6">
           <DayNavigator date={date} now={now} onChange={onDateChange} />
           {readOnly && (
-            <p className="rounded-2xl bg-muted px-4 py-3 text-sm text-muted-foreground">
-              Прошедшая дата — только просмотр.
-            </p>
+            <Alert>
+              <IconHistory aria-hidden />
+              <AlertTitle>Прошедшая дата — только просмотр</AlertTitle>
+            </Alert>
           )}
           <DaySchedule
             date={date}
@@ -150,9 +150,9 @@ function BookingsDay({ now, date, onDateChange }: BookingsDayProps) {
       </div>
 
       {canCreate && !editor && (
-        <div className="fixed inset-x-0 bottom-0 z-40 bg-linear-to-t from-background via-background/90 to-transparent px-4 pt-6 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden">
-          <Button size="lg" className="w-full" onClick={startCreate}>
-            <PlusIcon /> Новая бронь
+        <div className="fixed inset-x-0 bottom-0 z-sticky bg-linear-to-t from-background via-background/90 to-transparent px-4 pt-6 pb-[max(1rem,env(safe-area-inset-bottom))] lg:hidden">
+          <Button size="lg" className="w-full shadow-floating" onClick={startCreate}>
+            <IconPlus data-icon="inline-start" aria-hidden /> Новая бронь
           </Button>
         </div>
       )}
@@ -164,13 +164,13 @@ function BookingsDay({ now, date, onDateChange }: BookingsDayProps) {
 
 function ScreenSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Загрузка" className="mx-auto w-full max-w-6xl px-4 pt-6 sm:px-6 sm:pt-10">
-      <Skeleton className="h-8 w-48 rounded-xl" />
-      <Skeleton className="mt-3 h-4 w-72 rounded-full" />
-      <Skeleton className="mt-8 h-11 w-full max-w-md rounded-xl" />
+    <div aria-busy="true" aria-label="Загрузка" className="site-container max-w-6xl pt-6 sm:pt-10">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="mt-3 h-4 w-72" />
+      <Skeleton className="mt-8 h-10 w-full max-w-md" />
       <div className="mt-6 flex flex-col gap-2">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-16 w-full rounded-2xl" />
+          <Skeleton key={i} className="h-16 w-full rounded-xl" />
         ))}
       </div>
     </div>

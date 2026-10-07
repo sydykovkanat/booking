@@ -1,15 +1,18 @@
 'use client';
 
-import { CalendarPlusIcon } from 'lucide-react';
+import { IconCalendarPlus } from '@tabler/icons-react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import type { Booking } from '@/domain/booking';
+import { BOOKING_RULES } from '@/domain/config';
 import { useMediaQuery } from '@/hooks/use-media-query';
 
 import { BookingForm, type BookingFormProps } from '../form/booking-form';
 import type { BookingFormValues } from '../form/booking-form-schema';
-import { formatRange } from '../lib/format';
+import { formatDuration, formatRange } from '../lib/format';
 
 export type EditorRequest =
   | { mode: 'create'; initialValues: BookingFormValues }
@@ -27,21 +30,28 @@ interface BookingEditorProps extends FormCallbacks {
   onCreate: () => void;
 }
 
+const DESKTOP_QUERY = '(min-width: 1024px)';
+const RULES_SUMMARY = `${BOOKING_RULES.workStart}–${BOOKING_RULES.workEnd}, от ${formatDuration(BOOKING_RULES.minDurationMinutes)} до ${formatDuration(BOOKING_RULES.maxDurationMinutes)}`;
+
 function toFormValues(booking: Booking): BookingFormValues {
   return { date: booking.date, start: booking.start, end: booking.end, title: booking.title ?? '' };
 }
 
-const DESKTOP_QUERY = '(min-width: 1024px)';
-
-/** Inline side panel on desktop, bottom sheet on mobile. The form itself is identical. */
+/**
+ * Inline side panel on desktop, bottom drawer on mobile. The presentation is fixed when the
+ * editor opens: switching it mid-edit (e.g. rotating a tablet) would remount the form and lose input.
+ */
 export function BookingEditor({ editor, canCreate, cannotCreateReason, onCreate, ...callbacks }: BookingEditorProps) {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  const [locked, setLocked] = useState<{ key: number; desktop: boolean } | null>(null);
+  if (editor && locked?.key !== editor.key) setLocked({ key: editor.key, desktop: isDesktop });
+  const desktop = editor && locked?.key === editor.key ? locked.desktop : isDesktop;
 
   const title = editor?.mode === 'edit' ? 'Изменить бронь' : 'Новая бронь';
   const description =
     editor?.mode === 'edit'
       ? `Сейчас: ${formatRange(editor.booking)}${editor.booking.title ? ` · ${editor.booking.title}` : ''}`
-      : 'Рабочий день 09:00–18:00, от 30 минут до 2 часов';
+      : `Рабочий день ${RULES_SUMMARY}`;
 
   const form = editor && (
     <BookingForm
@@ -53,48 +63,48 @@ export function BookingEditor({ editor, canCreate, cannotCreateReason, onCreate,
     />
   );
 
-  if (isDesktop) {
+  if (desktop) {
     return (
-      <aside aria-labelledby="editor-title" className="sticky top-6 rounded-3xl bg-card p-6 shadow-[0_1px_3px_rgb(0_0_0/0.04)]">
+      <aside aria-labelledby="editor-title" className="rounded-2xl bg-card p-6 shadow-card lg:sticky lg:top-6">
         {editor ? (
           <>
             <h2 id="editor-title" className="text-lg font-semibold">
               {title}
             </h2>
-            <p className="mt-1 mb-6 text-sm text-muted-foreground">{description}</p>
+            <p className="mt-1 mb-6 text-ui-sm text-muted-foreground">{description}</p>
             {form}
           </>
         ) : (
-          <div className="flex flex-col items-center gap-3 py-10 text-center">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground" aria-hidden>
-              <CalendarPlusIcon className="size-5" />
-            </div>
-            <h2 id="editor-title" className="font-semibold">
-              Забронировать переговорку
-            </h2>
-            <p className="max-w-60 text-sm text-muted-foreground">
-              {canCreate ? 'Выберите свободное окно в расписании или задайте время вручную.' : cannotCreateReason}
-            </p>
+          <Empty className="p-0 py-6">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <IconCalendarPlus />
+              </EmptyMedia>
+              <EmptyTitle id="editor-title">Забронировать переговорку</EmptyTitle>
+              <EmptyDescription>
+                {canCreate ? 'Выберите свободное окно в расписании или задайте время вручную.' : cannotCreateReason}
+              </EmptyDescription>
+            </EmptyHeader>
             {canCreate && (
-              <Button className="mt-2" onClick={onCreate}>
-                Новая бронь
-              </Button>
+              <EmptyContent>
+                <Button onClick={onCreate}>Новая бронь</Button>
+              </EmptyContent>
             )}
-          </div>
+          </Empty>
         )}
       </aside>
     );
   }
 
   return (
-    <Sheet open={editor !== null} onOpenChange={(open) => !open && callbacks.onCancel()}>
-      <SheetContent side="bottom" className="overflow-y-auto px-5 pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        <SheetHeader className="p-0 pr-10 text-left">
-          <SheetTitle className="text-lg">{title}</SheetTitle>
-          <SheetDescription>{description}</SheetDescription>
-        </SheetHeader>
-        {form}
-      </SheetContent>
-    </Sheet>
+    <Drawer open={editor !== null} onOpenChange={(open) => !open && callbacks.onCancel()} showSwipeHandle>
+      <DrawerContent>
+        <DrawerHeader className="text-left">
+          <DrawerTitle>{title}</DrawerTitle>
+          <DrawerDescription>{description}</DrawerDescription>
+        </DrawerHeader>
+        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">{form}</div>
+      </DrawerContent>
+    </Drawer>
   );
 }

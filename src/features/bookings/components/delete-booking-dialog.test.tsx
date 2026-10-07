@@ -11,7 +11,7 @@ import type { BookingsApi } from '@/lib/api/bookings-api';
 import { BookingsApiProvider } from '../api/bookings-api-context';
 import { DeleteBookingDialog } from './delete-booking-dialog';
 
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
+vi.mock('../lib/notify', () => ({ notify: vi.fn() }));
 
 const booking: Booking = { id: 'a', date: '2026-10-08', start: '10:00', end: '11:00', title: 'Sync' };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
+import { IconCalendar, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
 import { useState } from 'react';
 import { ru } from 'react-day-picker/locale';
 
@@ -25,7 +25,7 @@ export function DayNavigator({ date, now, onChange }: DayNavigatorProps) {
   return (
     <nav aria-label="Выбор даты" className="flex items-center gap-2">
       <Button variant="outline" size="icon" aria-label="Предыдущий день" onClick={() => onChange(addDaysToIsoDate(date, -1))}>
-        <ChevronLeftIcon />
+        <IconChevronLeft aria-hidden />
       </Button>
 
       <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
@@ -34,12 +34,12 @@ export function DayNavigator({ date, now, onChange }: DayNavigatorProps) {
             <Button variant="outline" className="min-w-0 flex-1 justify-center gap-2.5 px-3 sm:flex-none sm:min-w-64 sm:justify-start sm:px-4" />
           }
         >
-          <CalendarDaysIcon className="text-muted-foreground max-[400px]:hidden" aria-hidden />
+          <IconCalendar className="text-muted-foreground max-[400px]:hidden" aria-hidden />
           <span className="truncate font-semibold sm:hidden">{formatDayTitle(date, now, { short: true })}</span>
           <span className="truncate font-semibold max-sm:hidden">{formatDayTitle(date, now)}</span>
           <span className="sr-only">, открыть календарь</span>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto p-1">
+        <PopoverContent align="start" className="w-auto p-0">
           <Calendar
             mode="single"
             locale={ru}
@@ -57,11 +57,11 @@ export function DayNavigator({ date, now, onChange }: DayNavigatorProps) {
       </Popover>
 
       <Button variant="outline" size="icon" aria-label="Следующий день" onClick={() => onChange(addDaysToIsoDate(date, 1))}>
-        <ChevronRightIcon />
+        <IconChevronRight aria-hidden />
       </Button>
 
       {!isToday && (
-        <Button variant="ghost" className="px-3 text-primary" onClick={() => onChange(now.date)}>
+        <Button variant="ghost" className="px-3 text-primary-strong" onClick={() => onChange(now.date)}>
           Сегодня
         </Button>
       )}

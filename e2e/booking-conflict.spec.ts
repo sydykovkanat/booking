@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-import { futureDate, openDay, submitButton } from './helpers';
+import { futureDate, openDay, submitButton, timeField } from './helpers';
 
 test.beforeEach(async ({ request }) => {
   await request.post('/api/demo/reset');
@@ -31,7 +31,7 @@ test('a real race: the second user gets 409 and keeps their input', async ({ bro
 
   // Nothing typed is lost, and the schedule behind the form is refreshed.
   await expect(bob.getByLabel(/Название/)).toHaveValue('Встреча Боба');
-  await expect(bob.getByLabel('Начало')).toHaveValue('09:00');
+  await expect(timeField(bob, 'Начало')).toContainText('09:00');
 
   // One click to the nearest free slot, then it saves.
   await alert.getByRole('button', { name: /Подставить 10:00–11:00/ }).click();

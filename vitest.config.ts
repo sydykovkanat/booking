@@ -11,7 +11,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/domain/**', 'src/server/**', 'src/lib/**', 'src/features/**'],
-      exclude: ['**/*.test.*', 'src/lib/utils.ts'],
+      // Vendored UI-kit helpers are covered in their own project.
+      exclude: ['**/*.test.*', 'src/lib/utils.ts', 'src/lib/scrollbar.ts', 'src/lib/locale.ts'],
     },
   },
 });

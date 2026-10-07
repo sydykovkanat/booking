@@ -1,50 +1,77 @@
-import { ChevronDownIcon } from 'lucide-react';
-import type { ComponentProps } from 'react';
+'use client';
 
+import type { Ref } from 'react';
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { TimeOption } from '@/domain/schedule';
-import { cn } from '@/lib/utils';
 
-const STATUS_SUFFIX: Record<TimeOption['status'], string> = {
-  available: '',
-  busy: ' · занято',
-  past: ' · прошло',
+const STATUS_HINT: Record<TimeOption['status'], string | null> = {
+  available: null,
+  busy: 'занято',
+  past: 'прошло',
 };
 
-interface TimeSelectProps extends Omit<ComponentProps<'select'>, 'children'> {
+interface TimeSelectProps {
+  id: string;
+  value: string;
   options: readonly TimeOption[];
   placeholder: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  disabled?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+  ref?: Ref<HTMLButtonElement>;
 }
 
 /**
- * Native select on purpose: the OS picker on mobile, full keyboard and screen reader support.
- * Unavailable times stay visible (and disabled) so users understand *why* they cannot pick them.
+ * Unavailable times stay in the list (disabled, with a reason) so users see *why*
+ * they cannot pick them instead of wondering where they went.
  */
-export function TimeSelect({ options, placeholder, className, value, ...props }: TimeSelectProps) {
+export function TimeSelect({
+  id,
+  value,
+  options,
+  placeholder,
+  onChange,
+  onBlur,
+  disabled,
+  invalid,
+  describedBy,
+  ref,
+}: TimeSelectProps) {
   return (
-    <div className="relative">
-      <select
-        value={value}
-        className={cn(
-          'h-11 w-full appearance-none rounded-xl bg-muted px-3.5 pr-10 text-base tabular-nums outline-none transition-colors focus-visible:bg-card focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60 aria-invalid:bg-destructive/8 aria-invalid:ring-3 aria-invalid:ring-destructive/25 sm:text-sm',
-          !value && 'text-muted-foreground',
-          className,
-        )}
-        {...props}
+    <Select
+      value={value || null}
+      onValueChange={(next) => next && onChange(next)}
+      onOpenChange={(open) => !open && onBlur?.()}
+      disabled={disabled}
+    >
+      <SelectTrigger
+        id={id}
+        ref={ref}
+        className="w-full tabular-nums"
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
       >
-        <option value="" disabled>
-          {placeholder}
-        </option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value} disabled={o.status !== 'available' && o.value !== value}>
-            {o.value}
-            {STATUS_SUFFIX[o.status]}
-          </option>
-        ))}
-      </select>
-      <ChevronDownIcon
-        aria-hidden
-        className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted-foreground"
-      />
-    </div>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent className="max-h-72">
+        {options.map((option) => {
+          const hint = STATUS_HINT[option.status];
+          return (
+            <SelectItem
+              key={option.value}
+              value={option.value}
+              disabled={option.status !== 'available'}
+              className="tabular-nums"
+            >
+              {option.value}
+              {hint && <span className="text-sm text-muted-foreground">{hint}</span>}
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
   );
 }

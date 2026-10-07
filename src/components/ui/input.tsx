@@ -1,19 +1,41 @@
 import * as React from "react"
 import { Input as InputPrimitive } from "@base-ui/react/input"
-import { cn } from "cn"
+import { cva } from "class-variance-authority"
+import { cn } from "@/lib/utils"
 
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+type InputSize = "sm" | "default" | "lg"
+
+// Heights match Button sm / default / lg. Touch keeps 16px text so iOS does not zoom.
+const inputVariants = cva(
+  "w-full min-w-0 rounded-lg border border-transparent bg-input/50 py-1 transition-[color,box-shadow] duration-base outline-none file:mr-3 file:inline-flex file:cursor-pointer file:items-center file:rounded-md file:border-0 file:bg-background file:px-3 file:text-sm file:font-medium file:text-foreground file:shadow-card file:transition-colors placeholder:text-muted-foreground hover:file:bg-accent focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/80 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&[readonly]]:cursor-default [&[readonly]]:bg-muted/60 [&[readonly]]:text-muted-foreground [&[type=file]]:pl-1.5",
+  {
+    variants: {
+      size: {
+        sm: "h-9 px-2.5 text-sm file:h-6 pointer-coarse:text-base",
+        default: "h-10 px-3 text-base file:h-7",
+        lg: "h-12 px-4 text-base file:h-8 [&[type=file]]:pl-2",
+      },
+    },
+    defaultVariants: {
+      size: "default",
+    },
+  }
+)
+
+type InputProps = Omit<React.ComponentProps<"input">, "size"> & {
+  size?: InputSize
+}
+
+function Input({ className, type, size = "default", ...props }: InputProps) {
   return (
     <InputPrimitive
       type={type}
       data-slot="input"
-      className={cn(
-        "h-11 w-full min-w-0 rounded-xl bg-muted px-3.5 py-2 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:bg-card focus-visible:ring-3 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted/60 disabled:opacity-50 aria-invalid:bg-destructive/8 aria-invalid:ring-3 aria-invalid:ring-destructive/25 md:text-sm dark:aria-invalid:ring-destructive/40",
-        className
-      )}
+      data-size={size}
+      className={cn(inputVariants({ size }), className)}
       {...props}
     />
   )
 }
 
-export { Input }
+export { Input, type InputSize }

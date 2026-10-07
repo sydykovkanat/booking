@@ -37,15 +37,15 @@ export function OccupancyBar({ date, now, bookings, selection }: OccupancyBarPro
           />
         )}
         {bookings.map((b) => (
-          <div key={b.id} className="absolute inset-y-0 rounded-full bg-primary/75" style={segmentStyle(b)} />
+          <div key={b.id} className="absolute inset-y-0 rounded-full bg-primary" style={segmentStyle(b)} />
         ))}
         {selection && (
           <div
             className={cn(
-              'absolute inset-y-0 rounded-full transition-all duration-200',
+              'absolute inset-y-0 rounded-full ring-2 ring-background transition-all duration-base',
               selection.conflict
                 ? 'bg-destructive [background-image:repeating-linear-gradient(135deg,transparent_0_3px,rgb(255_255_255/0.35)_3px_5px)]'
-                : 'bg-success',
+                : 'bg-info',
             )}
             style={segmentStyle(selection)}
           />

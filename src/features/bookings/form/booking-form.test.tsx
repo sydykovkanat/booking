@@ -55,9 +55,17 @@ afterEach(() => {
 
 const user = () => userEvent.setup();
 
+/** The time selects are enabled once the day's bookings are loaded. */
 async function waitForOptions() {
-  await waitFor(() => expect(screen.getByRole('option', { name: /10:00 · занято/ })).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByLabelText('Начало')).toBeEnabled());
 }
+
+async function pickTime(label: 'Начало' | 'Окончание', value: string) {
+  await user().click(screen.getByLabelText(label));
+  await user().click(await screen.findByRole('option', { name: new RegExp(`^${value}`) }));
+}
+
+const timeOf = (label: 'Начало' | 'Окончание') => screen.getByLabelText(label).textContent;
 
 describe('BookingForm', () => {
   it('submits a normalized booking', async () => {
@@ -86,10 +94,13 @@ describe('BookingForm', () => {
 
   it('keeps the input and suggests a free slot when the server returns 409', async () => {
     const colleague: Booking = { id: 'c', date: DATE, start: '11:00', end: '12:00', title: 'Коллега' };
-    const api = createFakeApi();
-    api.create.mockRejectedValueOnce(
-      new ApiError({ status: 409, code: 'CONFLICT', message: 'overlap', conflicts: [colleague] }),
-    );
+    const schedule = [planning];
+    const api = createFakeApi(schedule);
+    // Like the real server: the colleague's booking is stored, so the refetch returns it too.
+    api.create.mockImplementationOnce(async () => {
+      schedule.push(colleague);
+      throw new ApiError({ status: 409, code: 'CONFLICT', message: 'overlap', conflicts: [colleague] });
+    });
     const { onSuccess } = renderForm(api);
     await waitForOptions();
 
@@ -100,24 +111,71 @@ describe('BookingForm', () => {
     expect(alert).toHaveTextContent('Это время только что заняли');
     expect(alert).toHaveTextContent('11:00–12:00 «Коллега»');
     expect(screen.getByLabelText(/Название/)).toHaveValue('Ревью');
-    expect(screen.getByLabelText('Начало')).toHaveValue('11:00');
+    expect(timeOf('Начало')).toContain('11:00');
     expect(onSuccess).not.toHaveBeenCalled();
 
     // The schedule is refreshed after a conflict.
     await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
 
     await user().click(screen.getByRole('button', { name: /Подставить 12:00–13:00/ }));
-    expect(screen.getByLabelText('Начало')).toHaveValue('12:00');
-    expect(screen.getByLabelText('Окончание')).toHaveValue('13:00');
+    expect(timeOf('Начало')).toContain('12:00');
+    expect(timeOf('Окончание')).toContain('13:00');
     expect(screen.getByLabelText(/Название/)).toHaveValue('Ревью');
+  });
+
+  it('forgets a 409 conflict once the refetched schedule no longer has it', async () => {
+    const ghost: Booking = { id: 'g', date: DATE, start: '11:00', end: '12:00', title: 'Удалённая' };
+    const api = createFakeApi();
+    api.create.mockRejectedValueOnce(new ApiError({ status: 409, code: 'CONFLICT', message: 'x', conflicts: [ghost] }));
+    const { onSuccess } = renderForm(api);
+    await waitForOptions();
+
+    await user().click(screen.getByRole('button', { name: 'Забронировать' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Удалённая');
+
+    // The refetch does not contain the ghost (someone deleted it): the slot is bookable again.
+    await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
+    await user().click(screen.getByRole('button', { name: 'Забронировать' }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(api.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('treats a 409 on retry after a timeout as success when it is our own booking', async () => {
+    const api = createFakeApi();
+    const ours: Booking = { id: 'mine', date: DATE, start: '11:00', end: '12:00' };
+    api.create
+      .mockRejectedValueOnce(new ApiError({ status: 0, code: 'TIMEOUT', message: 'slow' }))
+      .mockRejectedValueOnce(new ApiError({ status: 409, code: 'CONFLICT', message: 'x', conflicts: [ours] }));
+    const { onSuccess } = renderForm(api);
+    await waitForOptions();
+
+    await user().click(screen.getByRole('button', { name: 'Забронировать' }));
+    await user().click(await screen.findByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(ours));
+  });
+
+  it('disables submit until the day schedule is loaded', async () => {
+    const api = createFakeApi();
+    api.list.mockImplementation(() => new Promise(() => {}));
+    renderForm(api);
+    expect(screen.getByRole('button', { name: 'Забронировать' })).toBeDisabled();
   });
 
   it('keeps the duration when the start changes', async () => {
     renderForm(createFakeApi(), { initialValues: { date: DATE, start: '11:00', end: '12:30', title: '' } });
     await waitForOptions();
 
-    await user().selectOptions(screen.getByLabelText('Начало'), '13:00');
-    expect(screen.getByLabelText('Окончание')).toHaveValue('14:30');
+    await pickTime('Начало', '13:00');
+    await waitFor(() => expect(timeOf('Окончание')).toContain('14:30'));
+  });
+
+  it('marks busy times as unavailable in the picker', async () => {
+    renderForm(createFakeApi());
+    await waitForOptions();
+
+    await user().click(screen.getByLabelText('Начало'));
+    expect(await screen.findByRole('option', { name: /^10:00\s*занято/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('option', { name: /^11:00$/ })).not.toHaveAttribute('aria-disabled', 'true');
   });
 
   it('offers to recreate a booking that was deleted meanwhile', async () => {
