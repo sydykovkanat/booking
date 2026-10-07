@@ -184,7 +184,7 @@ function Calendar({ now, view, date, compact, navigate }: CalendarProps) {
   return (
     <div className="flex min-h-dvh flex-col bg-muted">
       <main className="flex min-h-dvh flex-1 flex-col p-2 pb-24 sm:p-5">
-        <div className="flex flex-1 flex-col gap-4 rounded-2xl bg-card p-3 shadow-card sm:p-5">
+        <div className="flex flex-1 flex-col gap-4 rounded-2xl bg-card p-3 sm:p-5">
           <CalendarToolbar
             view={view}
             date={date}

@@ -26,7 +26,7 @@
     --shadow-card: var(--card-shadow);
     --shadow-popover: var(--popover-shadow);
     /* Floating chrome over the page: the open header card, the mobile FAB. */
-    --shadow-floating: 0 4px 32px rgb(19 20 22 / 0.12);
+    --shadow-floating: 0 4px 12px -4px rgb(19 20 22 / 0.18);
     /* Site UI text steps between the default scale's sm (14) and base (16),
        after auto.ru: lead 17/24 for the home search and brand grid, ui 15/20
        for links and controls, ui-sm 13/16 for secondary lines, caption 11/12
@@ -135,15 +135,16 @@
     --chart-3: oklch(0.68 0.17 55);
     --chart-4: oklch(0.58 0.2 300);
     --chart-5: oklch(0.63 0.2 20);
-    --card-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 4px 16px -6px rgb(0 0 0 / 0.08);
+    /* Borderless and flat: surfaces separate by tone, not by shadows. */
+    --card-shadow: 0 0 #0000;
     /* The zero-offset ambient layer lifts the popup on all sides (the drop
        layers vanish at the top edge) without drawing a border. */
-    --popover-shadow: 0 0 16px rgb(0 0 0 / 0.07), 0 12px 32px -8px rgb(0 0 0 / 0.14), 0 4px 12px -4px rgb(0 0 0 / 0.08);
+    --popover-shadow: 0 6px 20px -8px rgb(0 0 0 / 0.16);
     /* Glass controls (outline variants): translucent fill + backdrop blur,
        a specular top highlight and a soft inner edge instead of a border. */
     --glass: oklch(1 0 0 / 70%);
     --glass-hover: oklch(0.955 0 0 / 85%);
-    --glass-shadow: inset 0 0 0 0.5px oklch(0 0 0 / 14%), inset 0 1px 0 oklch(1 0 0), 0 1px 1.5px rgb(0 0 0 / 0.06);
+    --glass-shadow: 0 0 #0000;
     --glass-divider: oklch(0 0 0 / 10%);
     --radius: 0.625rem;
     /* State tints derived per theme (resolved on :root, so .dark values apply). */

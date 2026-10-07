@@ -14,23 +14,17 @@ import { cn } from '@/lib/utils';
 
 import { isoDateToLocalDate, localDateToIsoDate } from '../lib/format';
 
-/** A grouped list of rows (iOS settings style): tonal surface, hairlines between rows. */
+/** Rows as separate tonal tiles: no hairlines, an invalid group turns its tiles red-tinted. */
 export function RowGroup({ invalid, children }: { invalid?: boolean; children: ReactNode }) {
   return (
-    <div
-      className={cn(
-        'flex flex-col overflow-hidden rounded-xl bg-muted/70 transition-shadow duration-fast',
-        '[&>*+*]:shadow-[inset_0_1px_0_var(--border)]',
-        invalid && 'ring-2 ring-destructive/50',
-      )}
-    >
+    <div data-invalid={invalid || undefined} className="group/rows flex flex-col gap-1">
       {children}
     </div>
   );
 }
 
 const rowClass =
-  'focus-ring flex h-12 w-full items-center gap-3 px-4 text-left text-ui transition-colors duration-fast hover:bg-foreground/[0.03] disabled:pointer-events-none disabled:opacity-60';
+  'focus-ring flex h-12 w-full items-center gap-3 rounded-lg bg-muted/70 px-4 text-left text-ui transition-colors duration-fast hover:bg-muted group-data-invalid/rows:bg-destructive/10 disabled:pointer-events-none disabled:opacity-60';
 
 interface DateRowProps {
   value: IsoDate;
@@ -94,7 +88,7 @@ export function SelectRow({ id, label, value, options, placeholder = '—', disa
         id={id}
         aria-label={label}
         aria-describedby={describedBy}
-        className={cn(rowClass, 'rounded-none bg-transparent data-[size=default]:h-12 [&>svg:last-child]:hidden')}
+        className={cn(rowClass, 'data-[size=default]:h-12 [&>svg:last-child]:hidden')}
       >
         <span className="text-muted-foreground">{label}</span>
         <SelectValue className="ml-auto flex-none text-right font-medium tabular-nums" placeholder={placeholder}>

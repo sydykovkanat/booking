@@ -73,6 +73,7 @@ export function QuickBookingForm({
   };
 
   const timeId = 'quick-time-error';
+  const showCounter = title.length > BOOKING_RULES.titleMaxLength - 20;
   const duration = durationOf({ start, end });
   const startChoices: RowOption[] = ctl.startOptions
     .filter((o) => o.status === 'available' || o.value === start)
@@ -96,34 +97,30 @@ export function QuickBookingForm({
 
   return (
     <form onSubmit={ctl.submit} noValidate aria-busy={ctl.isSubmitting} className="flex flex-col gap-5">
-      <div className="group/title flex flex-col">
+      <div className="flex flex-col gap-1.5">
         <Input
           aria-label="Название"
           placeholder="Название встречи"
           autoComplete="off"
           autoFocus={autoFocusTitle}
+          size="lg"
           aria-invalid={Boolean(titleError) || undefined}
           aria-describedby={titleError ? 'quick-title-error' : undefined}
-          className="h-12 rounded-none border-0 bg-transparent px-0 text-xl font-semibold shadow-none placeholder:font-normal placeholder:text-muted-foreground/70 focus-visible:ring-0 aria-invalid:ring-0"
+          className="rounded-lg bg-muted/70 px-4 text-lg font-semibold placeholder:font-normal focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-primary/30 aria-invalid:border-transparent"
           {...ctl.form.register('title', { onChange: ctl.clearTitleError })}
         />
-        <span
-          aria-hidden
-          className={cn(
-            'h-px bg-border transition-[height,background-color] duration-fast group-focus-within/title:h-0.5 group-focus-within/title:bg-primary',
-            titleError && 'h-0.5 bg-destructive',
-          )}
-        />
-        <div className="mt-1.5 flex justify-between gap-3 text-ui-sm">
-          <span id="quick-title-error" className="text-destructive">
-            {titleError}
-          </span>
-          {title.length > BOOKING_RULES.titleMaxLength - 20 && (
-            <span className={cn('tabular-nums', titleError ? 'text-destructive' : 'text-muted-foreground')}>
-              {title.length}/{BOOKING_RULES.titleMaxLength}
+        {(titleError || showCounter) && (
+          <div className="flex justify-between gap-3 px-1 text-ui-sm">
+            <span id="quick-title-error" className="text-destructive">
+              {titleError}
             </span>
-          )}
-        </div>
+            {showCounter && (
+              <span className={cn('tabular-nums', titleError ? 'text-destructive' : 'text-muted-foreground')}>
+                {title.length}/{BOOKING_RULES.titleMaxLength}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">

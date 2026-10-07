@@ -46,10 +46,10 @@ export function MonthView({ date, ...cellProps }: MonthViewProps) {
       <div
         role="grid"
         aria-label={format(isoDateToLocalDate(date), 'LLLL yyyy', { locale: ru })}
-        className="grid flex-1 auto-rows-fr gap-px overflow-hidden rounded-xl bg-border/70"
+        className="grid flex-1 auto-rows-fr gap-1"
       >
         {monthGrid(date).map((week) => (
-          <div key={week[0]} role="row" className="grid grid-cols-7 gap-px">
+          <div key={week[0]} role="row" className="grid grid-cols-7 gap-1">
             {week.map((day) => (
               <DayCell
                 key={day}
@@ -115,8 +115,8 @@ function DayCell({
         aria-label={`${label}${dayBookings.length ? `, броней: ${dayBookings.length}` : ''}`}
         onClick={() => onPickDay(day)}
         className={cn(
-          'focus-ring flex aspect-square flex-col items-center justify-center gap-1',
-          inMonth ? 'bg-card' : 'bg-muted/60',
+          'focus-ring flex aspect-square flex-col items-center justify-center gap-1 rounded-lg',
+          inMonth ? 'bg-muted/50' : 'bg-transparent',
         )}
       >
         {number}
@@ -134,8 +134,8 @@ function DayCell({
       role="gridcell"
       aria-label={`${label}${dayBookings.length ? `, броней: ${dayBookings.length}` : ''}`}
       className={cn(
-        'group/cell relative flex min-h-28 flex-col gap-1 p-1.5',
-        inMonth ? 'bg-card' : 'bg-muted/60',
+        'group/cell relative flex min-h-28 flex-col gap-1 overflow-hidden rounded-lg p-1.5',
+        inMonth ? 'bg-muted/50' : 'bg-transparent',
         activeCreateDay === day && 'bg-primary/10',
       )}
     >
@@ -144,7 +144,7 @@ function DayCell({
           type="button"
           aria-label={`Новая бронь на ${label}`}
           onClick={(event) => onCreate(day, event.currentTarget)}
-          className="focus-ring absolute inset-0 cursor-cell transition-colors duration-fast hover:bg-primary/5"
+          className="focus-ring absolute inset-0 cursor-cell rounded-lg transition-colors duration-fast hover:bg-muted"
         />
       )}
 

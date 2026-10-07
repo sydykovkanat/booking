@@ -63,7 +63,7 @@ export function TimeGrid({ days, onOpenDay, ...columnProps }: TimeGridProps) {
         )}
 
         <div
-          className="grid flex-1 gap-px overflow-hidden rounded-xl bg-border/70"
+          className="grid flex-1 gap-1"
           style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}
         >
           <HourGutter />
@@ -105,7 +105,7 @@ function WeekdayHeader({ day, now, onOpenDay }: { day: IsoDate; now: RoomNow; on
 
 function HourGutter() {
   return (
-    <div aria-hidden className="relative bg-card">
+    <div aria-hidden className="relative">
       {HOURS.map((h, i) => (
         <span
           key={h}
@@ -169,16 +169,19 @@ function DayColumn({ day, now, bookings, draft, draftRef, editingId, onSelectRan
   return (
     <div
       ref={columnRef}
-      className={cn('relative bg-card', isPastDay && 'bg-muted/50')}
+      className={cn('relative overflow-hidden rounded-lg', isPastDay ? 'bg-muted/80' : 'bg-muted/40')}
       onPointerLeave={() => setHover(null)}
     >
       {/* Hour lines and the dimmed past (no hatching: it competed with the bookings). */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
-        {HOURS.slice(1, -1).map((h) => (
-          <div key={h} className="absolute inset-x-0 h-px bg-border/60" style={{ top: pct(h * 60) }} />
-        ))}
+        {/* Every other hour is a shade darker: rhythm without lines. */}
+        {HOURS.slice(0, -1)
+          .filter((_, i) => i % 2 === 1)
+          .map((h) => (
+            <div key={h} className="absolute inset-x-0 bg-foreground/[0.025]" style={{ top: pct(h * 60), height: `${(60 / SPAN) * 100}%` }} />
+          ))}
         {!isPastDay && pastUntil > DAY_START && (
-          <div className="absolute inset-x-0 top-0 bg-muted/60" style={{ height: pct(pastUntil) }} />
+          <div className="absolute inset-x-0 top-0 bg-muted/70" style={{ height: pct(pastUntil) }} />
         )}
       </div>
 
@@ -280,10 +283,10 @@ function DraftBlock({
       ref={innerRef}
       aria-hidden
       className={cn(
-        'pointer-events-none absolute inset-x-1 z-30 flex flex-col overflow-hidden rounded-lg px-3 py-1.5 shadow-floating transition-[top,height] duration-fast ease-out',
+        'pointer-events-none absolute inset-x-1 z-30 flex flex-col overflow-hidden rounded-lg px-3 py-1.5 transition-[top,height] duration-fast ease-out',
         // With a red brand accent, a conflict must not look like a normal (solid red) draft.
         conflict
-          ? 'bg-destructive/10 text-destructive shadow-none ring-2 ring-destructive ring-inset [background-image:repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_oklch,var(--destructive)_14%,transparent)_6px_9px)]'
+          ? 'bg-destructive/15 text-destructive [background-image:repeating-linear-gradient(135deg,transparent_0_6px,color-mix(in_oklch,var(--destructive)_22%,transparent)_6px_9px)]'
           : 'bg-primary text-primary-foreground',
       )}
       style={box(range)}
