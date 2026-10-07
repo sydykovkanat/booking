@@ -3,7 +3,8 @@
 Интерфейс бронирования одной переговорной на рабочий день 09:00–18:00: календарь (месяц / неделя / день),
 создание, редактирование и удаление броней, корректная обработка серверных конфликтов.
 
-- **Демо:** _ссылка будет добавлена после деплоя_
+- **Демо:** https://booking.sydykov.com (демо-инструменты включены: «занять слот за коллегу» для 409 и сброс данных)
+- **Репозиторий:** https://github.com/sydykovkanat/booking
 - **Стек:** Next.js 16 (App Router), React 19, TypeScript (strict), TanStack Query v5, react-hook-form + zod,
   Tailwind v4 + shadcn/ui (Base UI), Vitest + Testing Library, Playwright + axe.
 
