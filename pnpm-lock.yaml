@@ -53,9 +53,6 @@ importers:
       server-only:
         specifier: ^0.0.1
         version: 0.0.1
-      shadcn:
-        specifier: ^4.21.4
-        version: 4.21.4
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -111,6 +108,9 @@ importers:
       msw:
         specifier: ^3.0.2
         version: 3.0.2(@types/node@20.19.43)(typescript@5.9.3)(vite@8.3.3(@types/node@20.19.43)(jiti@2.7.0))
+      shadcn:
+        specifier: ^4.21.4
+        version: 4.21.4
       tailwindcss:
         specifier: ^4
         version: 4.3.3
