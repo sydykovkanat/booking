@@ -17,23 +17,25 @@ interface CalendarPanelProps {
 
 /** The open panel's content (form or details) inside its surface (popover, dialog or drawer). */
 export function CalendarPanel({ panels, now, compact, onDelete }: CalendarPanelProps) {
-  const { panel, details } = panels;
-  const label = panel?.kind === 'details' ? 'Бронь' : panel?.mode === 'edit' ? 'Изменить бронь' : 'Новая бронь';
+  // Render what is visible (open, or animating out), not just what is open.
+  const { panel, visible, details } = panels;
+  const label = visible?.kind === 'details' ? 'Бронь' : visible?.mode === 'edit' ? 'Изменить бронь' : 'Новая бронь';
 
   return (
     <Surface
       open={panel !== null}
-      presentation={panel?.presentation ?? 'side'}
+      presentation={visible?.presentation ?? 'side'}
       anchor={panels.anchor}
       label={label}
       onClose={panels.close}
+      onExited={panels.onExited}
     >
-      {panel?.kind === 'compose' && (
+      {visible?.kind === 'compose' && (
         <QuickBookingForm
-          key={panel.key}
-          mode={panel.mode}
-          original={panel.original}
-          initialValues={panel.initialValues}
+          key={visible.key}
+          mode={visible.mode}
+          original={visible.original}
+          initialValues={visible.initialValues}
           autoFocusTitle={!compact}
           onSaved={panels.onSaved}
           onCancel={panels.close}
@@ -41,7 +43,7 @@ export function CalendarPanel({ panels, now, compact, onDelete }: CalendarPanelP
           onPreviewChange={panels.onPreviewChange}
         />
       )}
-      {panel?.kind === 'details' && details && (
+      {visible?.kind === 'details' && details && (
         <BookingDetails
           booking={details}
           phase={getBookingPhase(details, now)}

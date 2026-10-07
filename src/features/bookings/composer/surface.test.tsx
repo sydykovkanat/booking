@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -30,5 +30,26 @@ describe('Surface', () => {
       </Surface>,
     );
     expect(screen.queryByText('скрыто')).not.toBeInTheDocument();
+  });
+});
+
+describe('Surface closing', () => {
+  it.each<Presentation>(['side', 'drawer', 'popover'])('%s reports when it has finished closing', async (presentation) => {
+    const onExited = vi.fn();
+    const props = { presentation, label: 'Новая бронь', onClose: vi.fn(), onExited, anchor: document.body };
+    const { rerender } = render(
+      <Surface open {...props}>
+        <p>форма</p>
+      </Surface>,
+    );
+    await screen.findByText('форма');
+    expect(onExited).not.toHaveBeenCalled();
+
+    rerender(
+      <Surface open={false} {...props}>
+        <p>форма</p>
+      </Surface>,
+    );
+    await waitFor(() => expect(onExited).toHaveBeenCalledTimes(1));
   });
 });

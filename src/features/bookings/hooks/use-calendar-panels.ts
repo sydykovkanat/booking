@@ -46,14 +46,23 @@ const valuesOf = (b: Booking): BookingFormValues => ({ date: b.date, start: b.st
  */
 export function useCalendarPanels({ now, date, range, bookings, compact, navigate }: Options) {
   const [panel, setPanel] = useState<Panel | null>(null);
+  // The last open panel, kept while the surface animates out: closing must not swap its
+  // content, presentation or anchor mid-animation.
+  const [shownPanel, setShownPanel] = useState<Panel | null>(null);
+  if (panel && panel !== shownPanel) setShownPanel(panel);
+  const visible = panel ?? shownPanel;
   const [draft, setDraft] = useState<Draft | null>(null);
   const [draftCell, setDraftCell] = useState<HTMLElement | null>(null);
   const draftRef = useRef<HTMLDivElement>(null);
   const floating: Presentation = compact ? 'drawer' : 'popover';
   const outOfView = (day: IsoDate) => day < range.from || day > range.to;
 
-  const close = () => {
-    setPanel(null);
+  const close = () => setPanel(null);
+
+  /** The surface finished animating out: now drop what it was showing, including the draft. */
+  const onExited = () => {
+    if (panel) return; // reopened meanwhile
+    setShownPanel(null);
     setDraft(null);
   };
 
@@ -89,18 +98,22 @@ export function useCalendarPanels({ now, date, range, bookings, compact, navigat
   const resolve = (anchor: Anchor | undefined) => (anchor === 'draft-cell' ? draftCell : anchor);
   const editingId = panel?.kind === 'compose' && panel.mode === 'edit' ? (panel.original?.id ?? null) : null;
   const details =
-    panel?.kind === 'details' ? (bookings.find((b) => b.id === panel.booking.id) ?? panel.booking) : null;
+    visible?.kind === 'details' ? (bookings.find((b) => b.id === visible.booking.id) ?? visible.booking) : null;
 
   return {
+    /** The open panel, or null. */
     panel,
+    /** What the surface renders: the open panel, or the one animating out. */
+    visible,
     draft,
     draftRef,
     editingId,
     details,
-    anchor: resolve(panel?.anchor),
+    anchor: resolve(visible?.anchor),
     activeCreateDay: panel?.kind === 'compose' && draft ? draft.day : null,
     setDraftCell,
     close,
+    onExited,
 
     createFromToolbar: () => composeOnDay(date < now.date ? now.date : date, compact ? 'drawer' : 'side'),
     createOnMonthDay: (day: IsoDate) => composeOnDay(day, floating, 'draft-cell'),

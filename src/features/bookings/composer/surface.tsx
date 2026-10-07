@@ -17,6 +17,8 @@ interface SurfaceProps {
   anchor?: RefObject<Element | null> | Element | null;
   label: string;
   onClose: () => void;
+  /** Called once the closing animation has finished. */
+  onExited?: () => void;
   children: ReactNode;
 }
 
@@ -24,12 +26,13 @@ interface SurfaceProps {
  * One place that decides *where* a panel appears: next to what was clicked on desktop,
  * a right-hand drawer when there is nothing to point at, a bottom drawer on phones.
  */
-export function Surface({ open, presentation, anchor, label, onClose, children }: SurfaceProps) {
+export function Surface({ open, presentation, anchor, label, onClose, onExited, children }: SurfaceProps) {
   const onOpenChange = (next: boolean) => !next && onClose();
+  const onOpenChangeComplete = (next: boolean) => !next && onExited?.();
 
   if (presentation === 'drawer') {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange} showSwipeHandle>
+      <Drawer open={open} onOpenChange={onOpenChange} onOpenChangeComplete={onOpenChangeComplete} showSwipeHandle>
         <DrawerContent aria-label={label}>
           <DrawerTitle className="sr-only">{label}</DrawerTitle>
           <div className="px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))]">{children}</div>
@@ -40,7 +43,12 @@ export function Surface({ open, presentation, anchor, label, onClose, children }
 
   if (presentation === 'side') {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">
+      <Drawer
+        open={open}
+        onOpenChange={onOpenChange}
+        onOpenChangeComplete={onOpenChangeComplete}
+        swipeDirection="right"
+      >
         <DrawerContent aria-label={label} className="data-[swipe-axis=x]:sm:[--drawer-content-width:28rem]">
           <div className="flex items-center justify-between gap-3 px-6 pt-6 pb-4">
             <DrawerTitle className="text-xl">{label}</DrawerTitle>
@@ -55,7 +63,7 @@ export function Surface({ open, presentation, anchor, label, onClose, children }
   }
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={onOpenChange} onOpenChangeComplete={onOpenChangeComplete}>
       <PopoverContent
         anchor={anchor ?? undefined}
         side="right"
