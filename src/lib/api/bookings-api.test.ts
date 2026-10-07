@@ -38,6 +38,17 @@ describe('httpBookingsApi — success', () => {
     expect(await api.list('2026-10-09')).toEqual([booking]);
   });
 
+  it('lists bookings for a date range', async () => {
+    server.use(
+      http.get(`${BASE}/api/bookings`, ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        expect([params.get('from'), params.get('to')]).toEqual(['2026-09-28', '2026-11-08']);
+        return HttpResponse.json([booking]);
+      }),
+    );
+    expect(await api.listRange('2026-09-28', '2026-11-08')).toEqual([booking]);
+  });
+
   it('creates, updates and removes', async () => {
     server.use(
       http.post(`${BASE}/api/bookings`, async ({ request }) =>

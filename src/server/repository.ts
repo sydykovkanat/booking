@@ -8,6 +8,8 @@ import { toMinutes } from '@/domain/time';
  */
 export interface BookingsRepository {
   listByDate(date: IsoDate): Booking[];
+  /** Inclusive range, sorted by date then start. */
+  listByRange(from: IsoDate, to: IsoDate): Booking[];
   findById(id: string): Booking | undefined;
   create(input: BookingInput): Booking;
   replace(booking: Booking): Booking;
@@ -24,6 +26,11 @@ export function createInMemoryRepository(
   return {
     listByDate: (date) =>
       [...items.values()].filter((b) => b.date === date).toSorted((a, b) => toMinutes(a.start) - toMinutes(b.start)),
+
+    listByRange: (from, to) =>
+      [...items.values()]
+        .filter((b) => b.date >= from && b.date <= to)
+        .toSorted((a, b) => a.date.localeCompare(b.date) || toMinutes(a.start) - toMinutes(b.start)),
 
     findById: (id) => items.get(id),
 

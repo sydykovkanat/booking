@@ -6,6 +6,17 @@ import { getRoomNow, isValidIsoDate } from '@/domain/time';
 import { badRequest, fromViolations, handleErrors, notFound, parseJsonBody } from './http';
 import type { BookingsRepository } from './repository';
 
+/** Enough for a 6-week month grid with some slack; keeps responses bounded. */
+const MAX_RANGE_DAYS = 62;
+
+function parseRange(from: string, to: string): { from: string; to: string } {
+  if (!isValidIsoDate(from) || !isValidIsoDate(to)) throw badRequest('Query parameters "from" and "to" must be YYYY-MM-DD');
+  if (from > to) throw badRequest('"from" must not be after "to"');
+  const days = (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000;
+  if (days > MAX_RANGE_DAYS) throw badRequest(`Range must not exceed ${MAX_RANGE_DAYS} days`);
+  return { from, to };
+}
+
 export interface BookingDeps {
   repository: BookingsRepository;
   clock: () => Date;
@@ -45,7 +56,12 @@ export function createBookingHandlers({ repository, clock, timeZone }: BookingDe
   return {
     list: (request) =>
       handleErrors(() => {
-        const date = new URL(request.url).searchParams.get('date') ?? '';
+        const params = new URL(request.url).searchParams;
+        if (params.has('from') || params.has('to')) {
+          const { from, to } = parseRange(params.get('from') ?? '', params.get('to') ?? '');
+          return Response.json(repository.listByRange(from, to));
+        }
+        const date = params.get('date') ?? '';
         if (!isValidIsoDate(date)) throw badRequest('Query parameter "date" must be YYYY-MM-DD');
         return Response.json(repository.listByDate(date));
       }),

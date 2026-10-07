@@ -16,7 +16,7 @@ vi.mock('../lib/notify', () => ({ notify: vi.fn() }));
 const booking: Booking = { id: 'a', date: '2026-10-08', start: '10:00', end: '11:00', title: 'Sync' };
 
 function setup(remove: BookingsApi['remove']) {
-  const api: BookingsApi = { list: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), remove: vi.fn(remove) };
+  const api: BookingsApi = { list: vi.fn(async () => []), listRange: vi.fn(async () => []), create: vi.fn(), update: vi.fn(), remove: vi.fn(remove) };
   const queryClient = new QueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>

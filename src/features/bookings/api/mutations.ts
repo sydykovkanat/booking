@@ -10,16 +10,21 @@ import { bookingKeys } from './query-keys';
 
 /**
  * Mutations are pessimistic: the UI only shows what the server accepted. Every outcome,
- * including 409/404, refreshes the affected days so the user sees the real schedule.
+ * including 409/404, refreshes the affected days and every visible range containing them.
  */
 function useInvalidateDays() {
   const queryClient = useQueryClient();
-  return (...dates: (IsoDate | undefined)[]) =>
-    Promise.all(
-      [...new Set(dates.filter((d): d is IsoDate => Boolean(d)))].map((date) =>
-        queryClient.invalidateQueries({ queryKey: bookingKeys.byDate(date) }),
-      ),
-    );
+  return (...dates: (IsoDate | undefined)[]) => {
+    const touched = new Set(dates.filter((d): d is IsoDate => Boolean(d)));
+    return queryClient.invalidateQueries({
+      queryKey: bookingKeys.lists(),
+      predicate: ({ queryKey }) => {
+        const [, , first, from, to] = queryKey as readonly string[];
+        if (first === 'range') return [...touched].some((d) => d >= from && d <= to);
+        return touched.has(first);
+      },
+    });
+  };
 }
 
 export function useCreateBooking() {

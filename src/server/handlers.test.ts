@@ -52,6 +52,26 @@ describe('GET /api/bookings', () => {
   });
 });
 
+describe('GET /api/bookings?from=&to=', () => {
+  const range = (query: string) => handlers.list(new Request(`http://test/api/bookings?${query}`));
+
+  it('returns bookings of an inclusive date range sorted by date and start', async () => {
+    const res = await range(`from=${TODAY}&to=${TOMORROW}`);
+    expect(res.status).toBe(200);
+    expect((await res.json()).map((b: Booking) => b.id)).toEqual(['past', 'ongoing', 'later']);
+  });
+
+  it.each([
+    ['from=2026-10-09&to=2026-10-08', 'reversed'],
+    ['from=2026-10-01', 'missing to'],
+    ['from=2026-01-01&to=2026-12-31', 'too long'],
+    ['from=bad&to=2026-10-08', 'invalid'],
+  ])('rejects %s (%s) with 400', async (query) => {
+    const res = await range(query);
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('POST /api/bookings', () => {
   it('creates a booking and trims the title', async () => {
     const res = await handlers.create(json('POST', { date: TOMORROW, start: '11:00', end: '12:00', title: ' Sync ' }));

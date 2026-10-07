@@ -1,11 +1,11 @@
 import { Suspense } from 'react';
 
-import { BookingsScreen } from '@/features/bookings/components/bookings-screen';
+import { CalendarScreen } from '@/features/bookings/components/calendar-screen';
 
 export default function HomePage() {
   return (
     <Suspense>
-      <BookingsScreen />
+      <CalendarScreen />
     </Suspense>
   );
 }

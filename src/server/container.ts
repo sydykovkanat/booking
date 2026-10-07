@@ -7,29 +7,23 @@ import { createBookingHandlers, type BookingHandlers } from './handlers';
 import { createInMemoryRepository, type BookingsRepository } from './repository';
 import { createSeed } from './seed';
 
-interface Container {
-  repository: BookingsRepository;
-  handlers: BookingHandlers;
-}
-
 const clock = () => new Date();
 
-function createContainer(): Container {
-  const repository = createInMemoryRepository(createSeed(getRoomNow(clock(), appConfig.roomTimeZone)));
-  return {
-    repository,
-    handlers: createBookingHandlers({ repository, clock, timeZone: appConfig.roomTimeZone }),
-  };
+// Only the data survives hot reloads in dev; handlers are rebuilt so code changes apply.
+const globalForRepository = globalThis as typeof globalThis & { __bookingRepository?: BookingsRepository };
+
+function getRepository(): BookingsRepository {
+  globalForRepository.__bookingRepository ??= createInMemoryRepository(
+    createSeed(getRoomNow(clock(), appConfig.roomTimeZone)),
+  );
+  return globalForRepository.__bookingRepository;
 }
 
-// Survives hot reloads in dev, so the in-memory data is not wiped on every edit.
-const globalForContainer = globalThis as typeof globalThis & { __bookingContainer?: Container };
-
-export function getContainer(): Container {
-  globalForContainer.__bookingContainer ??= createContainer();
-  return globalForContainer.__bookingContainer;
+export function getContainer(): { repository: BookingsRepository; handlers: BookingHandlers } {
+  const repository = getRepository();
+  return { repository, handlers: createBookingHandlers({ repository, clock, timeZone: appConfig.roomTimeZone }) };
 }
 
 export function resetToSeed(): void {
-  getContainer().repository.reset(createSeed(getRoomNow(clock(), appConfig.roomTimeZone)));
+  getRepository().reset(createSeed(getRoomNow(clock(), appConfig.roomTimeZone)));
 }

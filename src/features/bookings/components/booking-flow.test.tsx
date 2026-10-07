@@ -19,6 +19,7 @@ const planning: Booking = { id: 'p', date: DATE, start: '10:00', end: '11:00', t
 function createFakeApi(bookings: Booking[] = [planning]) {
   return {
     list: vi.fn<BookingsApi['list']>(async (date) => bookings.filter((b) => b.date === date)),
+    listRange: vi.fn<BookingsApi['listRange']>(async (from, to) => bookings.filter((b) => b.date >= from && b.date <= to)),
     create: vi.fn<BookingsApi['create']>(async (input) => ({ ...input, id: 'new' })),
     update: vi.fn<BookingsApi['update']>(async (id, patch) => ({ ...planning, ...patch, id })),
     remove: vi.fn<BookingsApi['remove']>(async () => undefined),

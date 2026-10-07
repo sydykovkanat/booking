@@ -33,7 +33,7 @@ export interface BookingFlowProps {
   mode: 'create' | 'edit';
   initialValues: BookingFormValues;
   original?: Booking;
-  onDateChange: (date: IsoDate) => void;
+  onDateChange?: (date: IsoDate) => void;
   onSaved: (booking: Booking, mode: 'create' | 'edit') => void;
   onCancelEdit: () => void;
   onRecreate: (values: BookingFormValues) => void;
@@ -58,7 +58,7 @@ export function BookingFlow({ mode, initialValues, original, onDateChange, onSav
     const next = localDateToIsoDate(day);
     ctl.setDate(next);
     ctl.setStart('');
-    onDateChange(next);
+    onDateChange?.(next);
   };
 
   const goNext = async () => {

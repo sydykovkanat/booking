@@ -5,4 +5,5 @@ export const bookingKeys = {
   all: ['bookings'] as const,
   lists: () => [...bookingKeys.all, 'list'] as const,
   byDate: (date: IsoDate) => [...bookingKeys.lists(), date] as const,
+  range: (from: IsoDate, to: IsoDate) => [...bookingKeys.lists(), 'range', from, to] as const,
 };

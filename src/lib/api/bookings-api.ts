@@ -12,6 +12,8 @@ export interface RequestOptions {
 /** Port the UI depends on. Swap the implementation to talk to a real backend. */
 export interface BookingsApi {
   list(date: IsoDate, options?: RequestOptions): Promise<Booking[]>;
+  /** Inclusive date range, e.g. a visible month grid. */
+  listRange(from: IsoDate, to: IsoDate, options?: RequestOptions): Promise<Booking[]>;
   create(input: BookingInput): Promise<Booking>;
   update(id: string, patch: BookingPatch): Promise<Booking>;
   remove(id: string): Promise<void>;
@@ -65,6 +67,9 @@ export function createHttpBookingsApi({
   return {
     list: (date, options) =>
       json(`/api/bookings?${new URLSearchParams({ date })}`, bookingListSchema, { signal: options?.signal }),
+
+    listRange: (from, to, options) =>
+      json(`/api/bookings?${new URLSearchParams({ from, to })}`, bookingListSchema, { signal: options?.signal }),
 
     create: (input) => json('/api/bookings', bookingSchema, { method: 'POST', body: JSON.stringify(input) }),
 
