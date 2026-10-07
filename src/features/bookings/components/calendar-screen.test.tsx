@@ -89,3 +89,18 @@ describe('CalendarScreen', () => {
     expect(screen.getByLabelText('Загружаем бронирования')).toBeInTheDocument();
   });
 });
+
+describe('CalendarScreen — day view', () => {
+  it('says so explicitly when a day has no bookings', async () => {
+    originalPushState(null, '', '/?view=day&date=2026-10-09');
+    renderScreen({ listRange: vi.fn(async () => []) });
+    expect(await screen.findByText(/Броней нет — выделите время в сетке/)).toBeInTheDocument();
+  });
+
+  it('shows no hint when the day has bookings', async () => {
+    originalPushState(null, '', '/?view=day&date=2026-10-08');
+    renderScreen({ listRange: vi.fn(async () => [booking]) });
+    expect(await screen.findByRole('button', { name: '10:00–11:00, Планирование' })).toBeInTheDocument();
+    expect(screen.queryByText(/Броней нет/)).not.toBeInTheDocument();
+  });
+});

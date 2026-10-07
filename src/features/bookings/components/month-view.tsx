@@ -176,7 +176,7 @@ function DayCell({
                   tone.chip,
                 )}
               >
-                <span className="shrink-0 tabular-nums opacity-70">{booking.start}</span>
+                <span className="shrink-0 tabular-nums">{booking.start}</span>
                 <span className={cn('truncate font-medium', past && 'line-through')}>{booking.title ?? 'Без названия'}</span>
               </button>
             </li>

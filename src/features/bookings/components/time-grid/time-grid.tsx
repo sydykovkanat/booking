@@ -65,14 +65,14 @@ function WeekdayHeader({ day, now, onOpenDay }: { day: IsoDate; now: RoomNow; on
       aria-label={`Открыть ${format(local, 'd MMMM, EEEE', { locale: ru })}`}
       className="focus-ring flex items-center justify-center gap-2 rounded-lg py-1.5 transition-colors duration-fast hover:bg-muted"
     >
-      <span className={cn('text-ui-sm first-letter:uppercase', day < now.date ? 'text-muted-foreground/70' : 'text-muted-foreground')}>
+      <span className={cn('text-ui-sm first-letter:uppercase', 'text-muted-foreground')}>
         {format(local, 'EEEEEE', { locale: ru })}
       </span>
       <span
         className={cn(
           'flex size-8 items-center justify-center rounded-full text-ui font-semibold tabular-nums',
           isToday && 'bg-primary text-primary-foreground',
-          day < now.date && 'text-muted-foreground/70',
+          day < now.date && 'text-muted-foreground',
         )}
       >
         {format(local, 'd')}

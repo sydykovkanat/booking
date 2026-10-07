@@ -75,7 +75,9 @@ export function CalendarBody({ view, date, now, compact, bookings, loading, erro
   }
 
   return (
-    <TimeGrid
+    <>
+      {view === 'day' && <EmptyDayHint date={date} now={now} bookings={bookings} compact={compact} />}
+      <TimeGrid
       days={view === 'week' ? weekDays(date) : [date]}
       now={now}
       bookings={bookings}
@@ -85,7 +87,22 @@ export function CalendarBody({ view, date, now, compact, bookings, loading, erro
       onSelectRange={panels.selectRange}
       onSelectBooking={panels.showDetails}
       onOpenDay={openDay}
-    />
+      />
+    </>
+  );
+}
+
+/** The day view says it in words when a day has no bookings, instead of an unexplained empty grid. */
+function EmptyDayHint({ date, now, bookings, compact }: { date: IsoDate; now: RoomNow; bookings: readonly Booking[]; compact: boolean }) {
+  if (bookings.some((b) => b.date === date)) return null;
+  const text =
+    date < now.date
+      ? 'В этот день броней не было.'
+      : `Броней нет — ${compact ? 'нажмите' : 'выделите'} время в сетке, чтобы забронировать.`;
+  return (
+    <p role="status" className="rounded-lg bg-muted/50 px-4 py-3 text-ui-sm text-muted-foreground">
+      {text}
+    </p>
   );
 }
 

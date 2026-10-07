@@ -66,7 +66,7 @@ export function AgendaList({ days, now, bookings, hideHeaders, onSelectBooking, 
                         )}
                       >
                         <span aria-hidden className={cn('absolute inset-y-2.5 left-2 w-[3px] rounded-full', tone.bar)} />
-                        <span className="w-24 shrink-0 text-ui-sm tabular-nums opacity-75">{formatRange(booking)}</span>
+                        <span className="w-24 shrink-0 text-ui-sm tabular-nums">{formatRange(booking)}</span>
                         <span className={cn('min-w-0 flex-1 truncate text-ui font-medium', phase === 'past' && 'line-through')}>
                           {booking.title ?? 'Без названия'}
                         </span>

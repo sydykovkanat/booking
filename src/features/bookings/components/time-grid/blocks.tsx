@@ -37,7 +37,7 @@ export function BookingBlock({
     >
       <span aria-hidden className={cn('absolute inset-y-1.5 left-1 w-[3px] rounded-full', tone.bar)} />
       <span className={cn('truncate text-ui-sm font-semibold', phase === 'past' && 'line-through decoration-1')}>{title}</span>
-      <span className={cn('shrink-0 text-xs tabular-nums opacity-75', compact && 'ml-auto')}>
+      <span className={cn('shrink-0 text-xs font-normal tabular-nums', compact && 'ml-auto')}>
         {formatRange(booking)}
         {!compact && duration >= 60 && ` · ${formatDuration(duration)}`}
       </span>
@@ -69,7 +69,7 @@ export function DraftBlock({
       style={box(range)}
     >
       <span className="truncate text-ui-sm font-semibold">{conflict ? 'Время занято' : 'Новая бронь'}</span>
-      <span className="text-xs tabular-nums opacity-80">
+      <span className="text-xs tabular-nums">
         {formatRange(range)} · {formatDuration(duration)}
       </span>
     </div>
