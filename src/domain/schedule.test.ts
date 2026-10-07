@@ -115,6 +115,13 @@ describe('endOptions', () => {
     expect(byValue['11:15']).toBe('busy');
   });
 
+  it('marks ends that are not after now as past (extending an ongoing booking)', () => {
+    const options = endOptions('10:00', { date: DATE, bookings: [], now: { date: DATE, minutes: 10 * 60 + 40 } });
+    const byValue = Object.fromEntries(options.map((o) => [o.value, o.status]));
+    expect(byValue['10:30']).toBe('past');
+    expect(byValue['10:45']).toBe('available');
+  });
+
   it('returns nothing for an invalid start', () => {
     expect(endOptions('', { date: DATE, bookings: [], now: TOMORROW_NOW })).toEqual([]);
   });

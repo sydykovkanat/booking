@@ -89,9 +89,12 @@ export function endOptions(start: TimeString, ctx: DayContext): TimeOption[] {
   const last = Math.min(from + BOOKING_RULES.maxDurationMinutes, WORK_END);
   const options: TimeOption[] = [];
 
+  const isPast = (m: number) => ctx.date < ctx.now.date || (ctx.date === ctx.now.date && m <= ctx.now.minutes);
+
   for (let m = from + BOOKING_RULES.minDurationMinutes; m <= last; m += STEP) {
     const value = fromMinutes(m);
-    options.push({ value, status: isFree({ start, end: value }, bookings) ? 'available' : 'busy' });
+    const status: SlotStatus = isPast(m) ? 'past' : isFree({ start, end: value }, bookings) ? 'available' : 'busy';
+    options.push({ value, status });
   }
   return options;
 }
