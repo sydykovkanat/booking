@@ -1,0 +1,24 @@
+# Meeting-room booking demo. Joins the shared `edge` network, where the edge Caddy
+# reaches it by container name; no ports are published on the host.
+#
+#   docker compose -f deploy/compose.yml -p booking up -d --build
+services:
+  app:
+    build:
+      context: ..
+      args:
+        NEXT_PUBLIC_ROOM_TIME_ZONE: Asia/Bishkek
+        NEXT_PUBLIC_DEMO_TOOLS: "true"
+    image: booking-app:latest
+    container_name: booking-app
+    restart: unless-stopped
+    init: true
+    environment:
+      DEMO_LATENCY_MS: "250-700"
+    mem_limit: 256m
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true

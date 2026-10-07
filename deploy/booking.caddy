@@ -1,0 +1,8 @@
+# Meeting-room booking demo (test task). Served by container booking-app on the edge network.
+# Not for indexing: it is a demo with resettable in-memory data.
+booking.sydykov.com {
+	tls /certs/origin.pem /certs/origin.key
+	encode zstd gzip
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy booking-app:3000
+}
